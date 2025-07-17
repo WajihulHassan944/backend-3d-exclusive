@@ -1,21 +1,6 @@
 import multer from 'multer';
-import path from 'path';
-import fs from 'fs';
 
-const tempDir = './temp-uploads';
-if (!fs.existsSync(tempDir)) {
-  fs.mkdirSync(tempDir);
-}
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, tempDir);
-  },
-  filename: (req, file, cb) => {
-    const uniqueName = `${Date.now()}_${file.originalname}`;
-    cb(null, uniqueName);
-  },
-});
+const storage = multer.memoryStorage();
 
 export const b2upload = multer({
   storage,

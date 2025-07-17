@@ -1,6 +1,4 @@
 import AWS from 'aws-sdk';
-import formidable from 'formidable';
-import fs from 'fs';
 import { User } from '../models/user.js';
 import { Video } from '../models/b2Upload.js';
 import { transporter } from '../utils/mailer.js';
@@ -13,7 +11,8 @@ const s3 = new AWS.S3({
   region: process.env.B2_REGION,
   signatureVersion: 'v4',
 });
-export const uploadToB2 = async (req, res, next) => {
+
+export const uploadToB2 = async (req, res) => {
   try {
     const file = req.file;
     if (!file) return res.status(400).json({ error: 'No file uploaded' });
@@ -21,31 +20,27 @@ export const uploadToB2 = async (req, res, next) => {
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const filePath = file.path;
-
-    const fileStream = fs.createReadStream(filePath);
     const uniqueFileName = `uploads/${Date.now()}_${file.originalname}`;
 
     const uploadParams = {
       Bucket: process.env.B2_BUCKET_NAME,
       Key: uniqueFileName,
-      Body: fileStream,
+      Body: file.buffer, // From memory storage
       ContentType: file.mimetype,
     };
 
     const result = await s3.upload(uploadParams).promise();
-   const signedUrl = s3.getSignedUrl('getObject', {
-  Bucket: process.env.B2_BUCKET_NAME,
-  Key: uploadParams.Key,
-   Expires:60 * 60 * 24 * 7,
-});
 
-const videoUrl = signedUrl;
+    const signedUrl = s3.getSignedUrl('getObject', {
+      Bucket: process.env.B2_BUCKET_NAME,
+      Key: uniqueFileName,
+      Expires: 60 * 60 * 24 * 7, // 7 days
+    });
 
     const savedVideo = await Video.create({
       user: user._id,
       originalFileName: file.originalname,
-      b2Url: videoUrl,
+      b2Url: signedUrl,
     });
 
     const emailHtml = generateEmailTemplate({
@@ -56,7 +51,7 @@ const videoUrl = signedUrl;
         <p style="color:#fff;">Your video <strong>${file.originalname}</strong> has been successfully uploaded.</p>
         <p style="color:#fff;">We'll begin converting it to 3D shortly. You will receive another email once it's done.</p>
         <p style="color:#fff;">You can download/view the original file here:</p>
-        <a href="${videoUrl}" style="color: #FF5722;">${videoUrl}</a>
+        <a href="${signedUrl}" style="color: #FF5722;">${signedUrl}</a>
       `,
     });
 
@@ -66,18 +61,22 @@ const videoUrl = signedUrl;
       subject: '✅ Your Video is Uploaded – Xclusive 3D',
       html: emailHtml,
     });
-console.log(`📩 Email sent to ${user.email} for video: ${file.originalname}`);
+
+    console.log(`📩 Email sent to ${user.email} for video: ${file.originalname}`);
 
     return res.status(200).json({
       success: true,
       videoId: savedVideo._id,
-      videoUrl,
+      videoUrl: signedUrl,
     });
   } catch (error) {
     console.error("❌ Upload error:", error);
     return res.status(500).json({ error: 'Upload failed' });
   }
 };
+
+
+
 export const getAllUploads = async (req, res) => {
   try {
     const videos = await Video.find();
