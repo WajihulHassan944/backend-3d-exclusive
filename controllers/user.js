@@ -275,7 +275,9 @@ export const register = async (req, res, next) => {
         bufferStream.pipe(stream);
       });
       profileUrl = cloudinaryUpload.secure_url;
-    }
+    } else {
+  profileUrl = "https://res.cloudinary.com/daflot6fo/image/upload/v1752757070/one_ju3l12.png";
+}
 
     const newUserData = {
       firstName,
