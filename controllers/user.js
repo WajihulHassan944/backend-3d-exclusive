@@ -11,6 +11,7 @@ import { transporter } from "../utils/mailer.js";
 import generateEmailTemplate from "../utils/emailTemplate.js";
 import { Wallet } from "../models/wallet.js";
 import stripe from "../utils/stripe.js";
+import { Video } from '../models/b2Upload.js';
 
 
 const fetchGoogleProfile = async (accessToken) => {
@@ -27,9 +28,8 @@ const fetchGoogleProfile = async (accessToken) => {
   return await res.json();
 };
 
-// For new user signup
 export const googleRegister = async (req, res, next) => {
-  const { token } = req.body;
+  const { token, country } = req.body;
 
   try {
     const profile = await fetchGoogleProfile(token);
@@ -47,6 +47,7 @@ export const googleRegister = async (req, res, next) => {
       firstName,
       lastName,
       email,
+      country: country || 'Unknown',
       profileUrl: picture,
       verified: true,
       isNotificationsEnabled: true,
@@ -54,13 +55,12 @@ export const googleRegister = async (req, res, next) => {
       isAgreed: true,
     });
 
-  // ✅ Initialize Stripe Customer and Wallet
     const stripeCustomer = await stripe.customers.create({
       email: user.email,
       name: `${user.firstName} ${user.lastName}`.trim(),
     });
 
-    const newWallet = await Wallet.create({
+    await Wallet.create({
       userId: user._id,
       stripeCustomerId: stripeCustomer.id,
       balance: 0,
@@ -68,46 +68,45 @@ export const googleRegister = async (req, res, next) => {
       transactions: [],
     });
 
-
-
-    // ✅ Generate welcome email using reusable template
+    // ✅ Branded Welcome Email (Xclusive 3D)
     const welcomeHtml = generateEmailTemplate({
       firstName: user.firstName,
-      subject: 'Welcome to doTask!',
+      subject: 'Experience 3D Like Never Before!',
       content: `
-        <h2 style="color:#007bff;">Welcome ${user.firstName}!</h2>
-        <p>Thanks for signing up using Google. Start exploring our services today and discover how easy it is to connect with top-rated professionals.</p>
+        <h2 style="color:#ffffff;">Hi ${user.firstName},</h2>
+        <p>Welcome to <strong>Xclusive 3D</strong> — where your 2D videos are transformed into stunning, immersive 3D experiences automatically.</p>
+        <p>You're now part of a revolution in content transformation. Explore our tools and discover how effortless creating jaw-dropping 3D visuals can be.</p>
+        <p><strong>Let’s make your videos come to life — in 3D!</strong></p>
       `
     });
 
-    // Send welcome email to user
     await transporter.sendMail({
-      from: `"Service Marketplace Admin" <${process.env.ADMIN_EMAIL}>`,
+      from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
       to: user.email,
-      subject: "Welcome to Service Marketplace!",
+      subject: "Welcome to Xclusive 3D – Convert Your Videos to Stunning 3D",
       html: welcomeHtml,
     });
 
-    // Notify admin of new signup
-   const adminNotificationHtml = generateEmailTemplate({
-  firstName: "Admin",
-  subject: "New Google Signup Notification",
-  content: `
-    <p>A new user signed up via Google:</p>
-    <ul>
-      <li><strong>Name:</strong> ${user.firstName} ${user.lastName}</li>
-      <li><strong>Email:</strong> ${user.email}</li>
-    </ul>
-  `
-});
+    // ✅ Notify Admin
+    const adminNotificationHtml = generateEmailTemplate({
+      firstName: "Admin",
+      subject: "New User Joined Xclusive 3D",
+      content: `
+        <p>A new user signed up via Google:</p>
+        <ul>
+          <li><strong>Name:</strong> ${user.firstName} ${user.lastName}</li>
+          <li><strong>Email:</strong> ${user.email}</li>
+          <li><strong>Country:</strong> ${user.country}</li>
+        </ul>
+      `
+    });
 
-await transporter.sendMail({
-  from: `"Service Marketplace Admin" <${process.env.ADMIN_EMAIL}>`,
-  to: process.env.ADMIN_EMAIL,
-  subject: "New Google Signup Notification",
-  html: adminNotificationHtml,
-});
-
+    await transporter.sendMail({
+      from: `"Xclusive 3D Notifications" <${process.env.ADMIN_EMAIL}>`,
+      to: process.env.ADMIN_EMAIL,
+      subject: "🚀 New Google Signup – Xclusive 3D",
+      html: adminNotificationHtml,
+    });
 
     sendCookie(user, res, `Welcome ${user.firstName}`, 201);
 
@@ -116,7 +115,6 @@ await transporter.sendMail({
     next(new ErrorHandler("Google Registration Failed", 500));
   }
 };
-
 
 export const googleLogin = async (req, res, next) => {
   const { token } = req.body;
@@ -131,21 +129,9 @@ export const googleLogin = async (req, res, next) => {
       return next(new ErrorHandler("User not found. Please register.", 404));
     }
 
-    if (!user.verified || user.blocked) {
-      return next(new ErrorHandler("Account is either not verified or has been blocked.", 403));
+    if (!user.verified) {
+      return next(new ErrorHandler("Account is not verified.", 403));
     }
-
-    // Clean roles: remove duplicates and conditionally include "seller"
-    let cleanedRoles = Array.from(new Set(user.role || []));
-
-    if (!user.sellerStatus) {
-      cleanedRoles = cleanedRoles.filter(role => role !== "seller");
-    }
-
-    // Determine top role (if available)
-    const priority = { seller: 1, buyer: 2 };
-    const sortedRoles = [...cleanedRoles].sort((a, b) => priority[a] - priority[b]);
-    const topRole = sortedRoles[0] || "buyer";
 
     sendCookie(user, res, `Welcome back, ${user.firstName}`, 200, {
       user: {
@@ -155,13 +141,9 @@ export const googleLogin = async (req, res, next) => {
         profileUrl: user.profileUrl || picture,
         email: user.email,
         country: user.country,
-        role: cleanedRoles,
         verified: user.verified,
-        blocked: user.blocked,
         createdAt: user.createdAt,
-        sellerStatus: user.sellerStatus,
       },
-      topRole,
     });
 
   } catch (error) {
@@ -401,13 +383,15 @@ export const getMyProfile = async (req, res, next) => {
   try {
     const user = req.user;
     const userId = user._id;
-    const wallet = await Wallet.findOne({ userId });
 
+    const wallet = await Wallet.findOne({ userId });
+    const videos = await Video.find({ user: userId }).sort({ createdAt: -1 });
 
     res.status(200).json({
       success: true,
-      user: user,
-      wallet: wallet,
+      user,
+      wallet,
+      videos,
     });
 
   } catch (error) {
