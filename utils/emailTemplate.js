@@ -7,7 +7,7 @@ const generateEmailTemplate = ({
   siteUrl = 'https://frontend-3d-exclusive.vercel.app/'
 }) => {
   return `
-    <div style="font-family:Arial, sans-serif; max-width:600px; margin:auto;background: linear-gradient(to bottom, #602fff, #170354); color:#fff; border-radius:12px; overflow:hidden; box-shadow:0 0 15px rgba(0,0,0,0.1);">
+    <div style="font-family:Arial, sans-serif; max-width:600px; margin:auto;background: linear-gradient(135deg, #00005d 0%, #0700d3 50%, #a000ff 100%); color:#fff; border-radius:12px; overflow:hidden; box-shadow:0 0 15px rgba(0,0,0,0.1);">
       
       <div style="text-align:center; padding:30px 20px 10px;">
         <img src="${logoUrl}" alt="Xclusive 3D Logo" style="width:130px;" />
