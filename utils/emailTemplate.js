@@ -11,7 +11,7 @@ const generateEmailTemplate = ({
       
       <div style="text-align:center; padding:30px 20px 10px;">
         <img src="${logoUrl}" alt="Xclusive 3D Logo" style="width:130px;" />
-        <h1 style="margin:15px 0 0; font-size:24px; font-weight:600; letter-spacing:1px;">${subject}</h1>
+        <h1 style="margin:15px 0 0; font-size:24px; font-weight:600; letter-spacing:1px;color: #fff;">${subject}</h1>
       </div>
 
       <div style="padding:25px 30px; color:#fff; font-size:15px; line-height:1.6;">
