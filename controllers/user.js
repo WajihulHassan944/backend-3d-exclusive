@@ -365,16 +365,16 @@ export const verifyEmail = async (req, res, next) => {
     if (!user) return next(new ErrorHandler("Invalid or expired verification link", 400));
 
     if (user.verified) {
-      return res.redirect("https://3-d-exlusive.vercel.app/status?verified=already");
+      return res.redirect("https://frontend-3d-exclusive.vercel.app/status?verified=already");
     }
 
     user.verified = true;
     await user.save();
 
-    res.redirect("https://3-d-exlusive.vercel.app/status?verified=success");
+    res.redirect("https://frontend-3d-exclusive.vercel.app/status?verified=success");
   } catch (error) {
     console.error(error);
-    res.redirect("https://3-d-exlusive.vercel.app/status?verified=fail");
+    res.redirect("https://frontend-3d-exclusive.vercel.app/status?verified=fail");
   }
 };
 
