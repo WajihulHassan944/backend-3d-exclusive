@@ -308,7 +308,7 @@ export const register = async (req, res, next) => {
    if (user) {
   
   const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "1d" });
-  const verificationLink = `https://backend-3dexclusive.vercel.app/api/users/verify-email?token=${token}`;
+  const verificationLink = `https://backend-3d-exclusive.vercel.app/api/users/verify-email?token=${token}`;
 await transporter.sendMail({
   from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
   to: email,
