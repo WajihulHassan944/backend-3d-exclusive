@@ -522,6 +522,66 @@ export const resetPasswordRequest = async (req, res, next) => {
 };
 
 
+export const resetPasswordRequestEmail = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    // Find the user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: "No user found with this email." });
+    }
+
+    // Generate reset token (1-hour expiry)
+    const resetToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
+    });
+
+    const resetLink = `https://frontend-3d-exclusive.vercel.app/reset-password?token=${resetToken}`;
+
+    // Compose email
+   const mailOptions = {
+  from: `"Xclusive 3D Support" <${process.env.ADMIN_EMAIL}>`,
+  to: user.email,
+  subject: "Reset Your Password – Xclusive 3D",
+  html: generateEmailTemplate({
+    firstName: user.firstName,
+    subject: "Reset Your Password – Xclusive 3D",
+    content: `
+      <p>Hi ${user.firstName},</p>
+      <p>It looks like you requested a password reset for your <strong>Xclusive 3D</strong> account.</p>
+      <p>Click the button below to set a new password:</p>
+      <div style="margin: 30px 0; text-align: center;">
+        <a href="${resetLink}" style="display: inline-block; padding: 12px 25px; background-color: #ff0066; color: #fff; text-decoration: none; border-radius: 5px; font-size: 16px;">
+          Reset My Password
+        </a>
+      </div>
+      <p>This secure link will expire in 1 hour.</p>
+      <p>If you didn’t request this, you can safely ignore this message — your account is still secure.</p>
+      <p>Need help? Just reply to this email, and our team will assist you.</p>
+      <p>– The Xclusive 3D Team</p>
+    `,
+  }),
+};
+
+
+    // Send email and handle errors
+    transporter.sendMail(mailOptions, (err, info) => {
+      if (err) {
+        console.error("❌ Error sending reset email:", err);
+        return res.status(500).json({ message: "Failed to send reset email. Please try again later." });
+      } else {
+        console.log("✅ Reset email sent:", info.response);
+        return res.status(200).json({ message: "Password reset link sent to your email." });
+      }
+    });
+
+  } catch (error) {
+    console.error("🚨 resetPasswordRequest error:", error);
+    next(error);
+  }
+};
+
 export const resetPasswordConfirm = async (req, res, next) => {
   try {
     const { token, newPassword } = req.body;
