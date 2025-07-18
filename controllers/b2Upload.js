@@ -119,3 +119,42 @@ export const deleteUpload = async (req, res) => {
     return res.status(500).json({ error: 'Failed to delete video' });
   }
 };
+
+
+export const getAllUploadsAuthenticated = async (req, res) => {
+  try {
+    const { since, status } = req.query;
+    const query = {};
+
+    // Optional: filter by creation time
+    if (since) {
+      query.createdAt = { $gte: new Date(since) };
+    }
+
+    // Optional: filter by status
+    if (status) {
+      query.status = status;
+    }
+
+    const videos = await Video.find(query).sort({ createdAt: -1 });
+
+    // No need to re-sign URLs — just return what's in DB
+    const formattedVideos = videos.map((video) => ({
+      _id: video._id,
+      user: video.user,
+      originalFileName: video.originalFileName,
+      b2Url: video.b2Url,
+      status: video.status,
+      createdAt: video.createdAt,
+    }));
+
+    return res.status(200).json({
+      success: true,
+      count: formattedVideos.length,
+      videos: formattedVideos,
+    });
+  } catch (error) {
+    console.error("❌ Error fetching uploads:", error);
+    return res.status(500).json({ success: false, message: 'Failed to fetch uploads' });
+  }
+};

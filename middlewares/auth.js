@@ -16,3 +16,19 @@ export const isAuthenticated = async (req, res, next) => {
   next();
 };
 
+export const authenticateApiKey = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  const apiKey = 'byfsjachbfe248tvjcds';
+
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ success: false, message: 'Missing Authorization Header' });
+  }
+
+  const token = authHeader.split(' ')[1];
+
+  if (token !== apiKey) {
+    return res.status(403).json({ success: false, message: 'Invalid API Key' });
+  }
+
+  next();
+};

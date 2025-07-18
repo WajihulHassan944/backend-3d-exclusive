@@ -16,8 +16,8 @@ const videoSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ["uploaded to 3d cloud", "processing", "completed", "failed"],
-    default: "uploaded to 3d cloud",
+    enum: ["uploaded", "processing", "completed", "failed"],
+    default: "uploaded",
   },
   convertedUrl: {
     type: String,

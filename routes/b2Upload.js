@@ -1,11 +1,12 @@
 import express from 'express';
-import { deleteUpload, getAllUploads, uploadToB2 } from '../controllers/b2Upload.js';
-import { isAuthenticated } from '../middlewares/auth.js';
+import { deleteUpload, getAllUploads, getAllUploadsAuthenticated, uploadToB2 } from '../controllers/b2Upload.js';
+import { authenticateApiKey, isAuthenticated } from '../middlewares/auth.js';
 import { b2upload } from '../middlewares/b2upload.js';
 
 const router = express.Router();
 
 router.post('/upload', isAuthenticated, b2upload.single('file'), uploadToB2);
 router.get('/uploads', getAllUploads);
+router.get('/videos',authenticateApiKey, getAllUploadsAuthenticated);
 router.delete('/uploads/:id', deleteUpload);
 export default router;
