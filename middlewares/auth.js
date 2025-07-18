@@ -18,7 +18,7 @@ export const isAuthenticated = async (req, res, next) => {
 
 export const authenticateApiKey = (req, res, next) => {
   const authHeader = req.headers.authorization;
-  const apiKey = 'byfsjachbfe248tvjcds';
+  const apiKey = process.env.API_KEY;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ success: false, message: 'Missing Authorization Header' });
