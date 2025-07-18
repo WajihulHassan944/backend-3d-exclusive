@@ -521,60 +521,53 @@ export const resetPasswordRequest = async (req, res, next) => {
   }
 };
 
-
 export const resetPasswordRequestEmail = async (req, res, next) => {
   try {
     const { email } = req.body;
 
-    // Find the user by email
+    // 1. Check if user exists
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(404).json({ message: "No user found with this email." });
     }
 
-    // Generate reset token (1-hour expiry)
+    // 2. Generate reset token (valid for 1 hour)
     const resetToken = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, {
       expiresIn: "1h",
     });
 
     const resetLink = `https://frontend-3d-exclusive.vercel.app/reset-password?token=${resetToken}`;
 
-    // Compose email
-   const mailOptions = {
-  from: `"Xclusive 3D Support" <${process.env.ADMIN_EMAIL}>`,
-  to: user.email,
-  subject: "Reset Your Password – Xclusive 3D",
-  html: generateEmailTemplate({
-    firstName: user.firstName,
-    subject: "Reset Your Password – Xclusive 3D",
-    content: `
-      <p>Hi ${user.firstName},</p>
-      <p>It looks like you requested a password reset for your <strong>Xclusive 3D</strong> account.</p>
-      <p>Click the button below to set a new password:</p>
-      <div style="margin: 30px 0; text-align: center;">
-        <a href="${resetLink}" style="display: inline-block; padding: 12px 25px; background-color: #ff0066; color: #fff; text-decoration: none; border-radius: 5px; font-size: 16px;">
-          Reset My Password
-        </a>
-      </div>
-      <p>This secure link will expire in 1 hour.</p>
-      <p>If you didn’t request this, you can safely ignore this message — your account is still secure.</p>
-      <p>Need help? Just reply to this email, and our team will assist you.</p>
-      <p>– The Xclusive 3D Team</p>
-    `,
-  }),
-};
-
-
-    // Send email and handle errors
-    transporter.sendMail(mailOptions, (err, info) => {
-      if (err) {
-        console.error("❌ Error sending reset email:", err);
-        return res.status(500).json({ message: "Failed to send reset email. Please try again later." });
-      } else {
-        console.log("✅ Reset email sent:", info.response);
-        return res.status(200).json({ message: "Password reset link sent to your email." });
-      }
+    // 3. Compose email using your branded template
+    const resetHtml = generateEmailTemplate({
+      firstName: user.firstName,
+      subject: "Reset Your Password – Xclusive 3D",
+      content: `
+        <p style="margin:0;">Hi ${user.firstName},</p>
+        <p>We received a request to reset your password for your <strong>Xclusive 3D</strong> account.</p>
+        <p>Click the button below to set a new password:</p>
+        <div style="margin: 30px 0; text-align: center;">
+          <a href="${resetLink}" style="display: inline-block; padding: 12px 25px; background-color: #ff0066; color: #fff; text-decoration: none; border-radius: 5px; font-size: 16px;">
+            Reset My Password
+          </a>
+        </div>
+        <p>This secure link will expire in 1 hour.</p>
+        <p>If you didn’t request this, no action is needed — your account is still safe.</p>
+        <p>Need help? Just reply to this email and our team will assist you.</p>
+        <p style="margin-top:30px;">– The Xclusive 3D Team</p>
+      `,
     });
+
+    // 4. Send the email
+    await transporter.sendMail({
+      from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+      to: user.email,
+      subject: "Reset Your Password – Xclusive 3D",
+      html: resetHtml,
+    });
+
+    // 5. Respond success
+    return res.status(200).json({ message: "Password reset link sent to your email." });
 
   } catch (error) {
     console.error("🚨 resetPasswordRequest error:", error);
