@@ -615,3 +615,62 @@ export const updateProfile = async (req, res, next) => {
   }
 };
 
+
+
+
+
+export const handleContactForm = async (req, res, next) => {
+  try {
+    const { name, email, subject, message } = req.body;
+
+    if (!name || !email || !subject || !message) {
+      return res.status(400).json({ success: false, message: "All fields are required." });
+    }
+
+    // ✅ Notify Admin
+    const adminHtml = generateEmailTemplate({
+      firstName: "Admin",
+      subject: `New Contact Form Submission`,
+      content: `
+        <p><strong>Name:</strong> ${name}</p>
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Subject:</strong> ${subject}</p>
+        <p><strong>Message:</strong></p>
+        <p>${message}</p>
+      `
+    });
+
+    await transporter.sendMail({
+      from: `"Xclusive 3D Contact Form" <${process.env.ADMIN_EMAIL}>`,
+      to: process.env.ADMIN_EMAIL,
+      subject: `📬 New Contact Message from ${name}`,
+      html: adminHtml,
+    });
+
+    // ✅ Acknowledge User
+    const userHtml = generateEmailTemplate({
+      firstName: name,
+      subject: "We've Received Your Message",
+      content: `
+        <p>Hi ${name},</p>
+        <p>Thanks for reaching out to <strong>Xclusive 3D</strong>. We've received your message and will get back to you as soon as possible.</p>
+        <p><strong>Your Message:</strong></p>
+        <p>${message}</p>
+        <p>In the meantime, feel free to explore our platform!</p>
+      `
+    });
+
+    await transporter.sendMail({
+      from: `"Xclusive 3D Team" <${process.env.ADMIN_EMAIL}>`,
+      to: email,
+      subject: "✅ We've Received Your Message – Xclusive 3D",
+      html: userHtml,
+    });
+
+    return res.status(200).json({ success: true, message: "Message sent successfully." });
+
+  } catch (error) {
+    console.error("Contact form error:", error);
+    return res.status(500).json({ success: false, message: "Something went wrong." });
+  }
+};

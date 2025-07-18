@@ -1,5 +1,5 @@
 import express from "express";
-import { deleteUserById, getAllUsers, getMyProfile, getUserById, googleLogin, googleRegister, login, logout, register,  resetPasswordConfirm, resetPasswordRequest,  updateProfile, verifyEmail } from "../controllers/user.js";
+import { deleteUserById, getAllUsers, getMyProfile, getUserById, googleLogin, googleRegister, handleContactForm, login, logout, register,  resetPasswordConfirm, resetPasswordRequest,  updateProfile, verifyEmail } from "../controllers/user.js";
 import { isAuthenticated } from "../middlewares/auth.js";
 import upload from "../middlewares/upload.js";
 
@@ -18,6 +18,6 @@ router.get("/getUserById/:userId", getUserById);
 router.post("/reset-password-request", resetPasswordRequest);
 router.post("/reset-password-confirm", resetPasswordConfirm);
 router.put("/update-profile", upload.single("profileImg"), updateProfile);
-
+router.post('/contact', handleContactForm);
 
 export default router;
