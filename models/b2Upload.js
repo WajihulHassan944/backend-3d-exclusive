@@ -14,6 +14,15 @@ const videoSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+    lengthInSeconds: {
+    type: Number,
+  },
+   quality: {
+    type: String,
+    enum: ["1080p", "2.7K", "4K"],
+  },
+
+
   status: {
     type: String,
     enum: ["uploaded", "processing", "completed", "failed"],

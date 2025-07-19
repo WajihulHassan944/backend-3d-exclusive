@@ -15,6 +15,7 @@ const s3 = new AWS.S3({
 export const uploadToB2 = async (req, res) => {
   try {
     const file = req.file;
+       const { lengthInSeconds, quality } = req.body;
     if (!file) return res.status(400).json({ error: 'No file uploaded' });
 
     const user = await User.findById(req.user._id);
@@ -41,6 +42,8 @@ export const uploadToB2 = async (req, res) => {
       user: user._id,
       originalFileName: file.originalname,
       b2Url: signedUrl,
+       lengthInSeconds,
+      quality,
     });
 
     const emailHtml = generateEmailTemplate({
@@ -119,7 +122,35 @@ export const deleteUpload = async (req, res) => {
     return res.status(500).json({ error: 'Failed to delete video' });
   }
 };
+export const deleteAllUserVideos = async (req, res) => {
+  try {
+    const { id: userId } = req.params; // ✅ match route param name
+    console.log("UserID:", userId);
 
+    const videos = await Video.find({ user: userId });
+    if (!videos.length) return res.status(404).json({ error: 'No videos found for this user' });
+
+    for (const video of videos) {
+      if (video.b2Url) {
+        const url = new URL(video.b2Url);
+        const key = url.pathname.startsWith('/') ? url.pathname.slice(1) : url.pathname;
+
+        console.log('🗝️ Deleting key from B2:', key);
+        await s3.deleteObject({
+          Bucket: process.env.B2_BUCKET_NAME,
+          Key: key,
+        }).promise();
+      }
+    }
+
+    await Video.deleteMany({ user: userId });
+
+    return res.status(200).json({ success: true, message: 'All videos deleted for user' });
+  } catch (error) {
+    console.error("❌ Bulk delete error:", error);
+    return res.status(500).json({ error: 'Failed to delete videos for user' });
+  }
+};
 
 export const getAllUploadsAuthenticated = async (req, res) => {
   try {

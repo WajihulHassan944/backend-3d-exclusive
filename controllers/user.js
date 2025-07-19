@@ -12,6 +12,7 @@ import generateEmailTemplate from "../utils/emailTemplate.js";
 import { Wallet } from "../models/wallet.js";
 import stripe from "../utils/stripe.js";
 import { Video } from '../models/b2Upload.js';
+import { Cart } from "../models/cart.js";
 
 
 const fetchGoogleProfile = async (accessToken) => {
@@ -388,14 +389,15 @@ export const getMyProfile = async (req, res, next) => {
 
     const wallet = await Wallet.findOne({ userId });
     const videos = await Video.find({ user: userId }).sort({ createdAt: -1 });
+    const cart = await Cart.findOne({ user: userId });
 
     res.status(200).json({
       success: true,
       user,
       wallet,
       videos,
+      cart,
     });
-
   } catch (error) {
     next(error);
   }
