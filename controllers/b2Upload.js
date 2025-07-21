@@ -18,7 +18,7 @@ export const uploadToB2 = async (req, res) => {
        const { lengthInSeconds, quality } = req.body;
     if (!file) return res.status(400).json({ error: 'No file uploaded' });
 
-    const user = await User.findById(req.body.id);
+    const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const uniqueFileName = `uploads/${Date.now()}_${file.originalname}`;
@@ -79,7 +79,87 @@ export const uploadToB2 = async (req, res) => {
 };
 
 
+export const getB2SignedUrl = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
 
+    const { fileName, fileType } = req.body;
+    if (!fileName || !fileType) return res.status(400).json({ error: 'Missing filename or fileType' });
+
+    const key = `uploads/${Date.now()}_${fileName}`;
+
+    const params = {
+      Bucket: process.env.B2_BUCKET_NAME,
+      Key: key,
+      Expires: 60 * 10, // 10 minutes
+      ContentType: fileType,
+    };
+
+    const signedUrl = await s3.getSignedUrlPromise('putObject', params);
+
+    res.status(200).json({ signedUrl, key });
+  } catch (err) {
+    console.error('❌ Signed URL Error:', err);
+    res.status(500).json({ error: 'Failed to generate signed URL' });
+  }
+};
+
+export const saveB2Metadata = async (req, res) => {
+  try {
+    const { originalFileName, key, quality, lengthInSeconds } = req.body;
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    // Generate signed URL
+    const signedUrl = s3.getSignedUrl('getObject', {
+      Bucket: process.env.B2_BUCKET_NAME,
+      Key: key,
+      Expires: 60 * 60 * 24 * 7, // 7 days
+    });
+
+    // Save video metadata to DB
+    const savedVideo = await Video.create({
+      user: user._id,
+      originalFileName,
+      b2Url: signedUrl,
+      lengthInSeconds,
+      quality,
+    });
+
+    // Email HTML
+    const emailHtml = generateEmailTemplate({
+      firstName: user.firstName || "there",
+      subject: '🎉 Your Video Upload was Successful!',
+      content: `
+        <p style="color:#fff;">Hi ${user.firstName},</p>
+        <p style="color:#fff;">Your video <strong>${originalFileName}</strong> has been successfully uploaded.</p>
+        <p style="color:#fff;">We'll begin converting it to 3D shortly. You will receive another email once it's done.</p>
+        <p style="color:#fff;">You can download/view the original file here:</p>
+        <a href="${signedUrl}" style="color: #FF5722;">${signedUrl}</a>
+      `,
+    });
+
+    await transporter.sendMail({
+      from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+      to: user.email,
+      subject: '✅ Your Video is Uploaded – Xclusive 3D',
+      html: emailHtml,
+    });
+
+    console.log(`📩 Email sent to ${user.email} for video: ${originalFileName}`);
+
+    return res.status(200).json({
+      success: true,
+      videoId: savedVideo._id,
+      videoUrl: signedUrl,
+    });
+  } catch (err) {
+    console.error("❌ Metadata error:", err);
+    res.status(500).json({ error: 'Metadata save failed' });
+  }
+};
 export const getAllUploads = async (req, res) => {
   try {
     const videos = await Video.find();
