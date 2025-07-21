@@ -18,7 +18,7 @@ export const uploadToB2 = async (req, res) => {
        const { lengthInSeconds, quality } = req.body;
     if (!file) return res.status(400).json({ error: 'No file uploaded' });
 
-    const user = await User.findById(req.user._id);
+    const user = await User.findById(req.body.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const uniqueFileName = `uploads/${Date.now()}_${file.originalname}`;
