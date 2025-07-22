@@ -78,7 +78,7 @@ export const getR2SignedUrl = async (req, res) => {
 
 export const saveR2Metadata = async (req, res) => {
   try {
-    const { originalFileName, key, quality, lengthInSeconds } = req.body;
+    const { originalFileName, key, quality, lengthInSeconds , conversionFormat } = req.body;
 
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -95,6 +95,7 @@ export const saveR2Metadata = async (req, res) => {
       originalFileName,
       b2Url: signedUrl,
       lengthInSeconds,
+      conversionFormat,
       quality,
     });
 
