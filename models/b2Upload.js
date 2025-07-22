@@ -17,10 +17,11 @@ const videoSchema = new mongoose.Schema({
     lengthInSeconds: {
     type: Number,
   },
-   quality: {
-    type: String,
-    enum: ["1080p", "2.7K", "4K"],
-  },
+quality: {
+  type: String,
+  enum: ["480p", "720p", "1080p", "2.7K", "4K", "5K", "6K", "8K"],
+},
+
 
 
   status: {

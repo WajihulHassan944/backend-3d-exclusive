@@ -12,87 +12,22 @@ const s3 = new AWS.S3({
   signatureVersion: 'v4',
 });
 
-export const uploadToB2 = async (req, res) => {
-  try {
-    const file = req.file;
-       const { lengthInSeconds, quality } = req.body;
-    if (!file) return res.status(400).json({ error: 'No file uploaded' });
-
-    const user = await User.findById(req.user._id);
-    if (!user) return res.status(404).json({ error: 'User not found' });
-
-    const uniqueFileName = `uploads/${Date.now()}_${file.originalname}`;
-
-    const uploadParams = {
-      Bucket: process.env.B2_BUCKET_NAME,
-      Key: uniqueFileName,
-      Body: file.buffer, // From memory storage
-      ContentType: file.mimetype,
-    };
-
-    const result = await s3.upload(uploadParams).promise();
-
-    const signedUrl = s3.getSignedUrl('getObject', {
-      Bucket: process.env.B2_BUCKET_NAME,
-      Key: uniqueFileName,
-      Expires: 60 * 60 * 24 * 7, // 7 days
-    });
-
-    const savedVideo = await Video.create({
-      user: user._id,
-      originalFileName: file.originalname,
-      b2Url: signedUrl,
-       lengthInSeconds,
-      quality,
-    });
-
-    const emailHtml = generateEmailTemplate({
-      firstName: user.firstName || "there",
-      subject: '🎉 Your Video Upload was Successful!',
-      content: `
-        <p style="color:#fff;">Hi ${user.firstName},</p>
-        <p style="color:#fff;">Your video <strong>${file.originalname}</strong> has been successfully uploaded.</p>
-        <p style="color:#fff;">We'll begin converting it to 3D shortly. You will receive another email once it's done.</p>
-        <p style="color:#fff;">You can download/view the original file here:</p>
-        <a href="${signedUrl}" style="color: #FF5722;">${signedUrl}</a>
-      `,
-    });
-
-    await transporter.sendMail({
-      from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
-      to: user.email,
-      subject: '✅ Your Video is Uploaded – Xclusive 3D',
-      html: emailHtml,
-    });
-
-    console.log(`📩 Email sent to ${user.email} for video: ${file.originalname}`);
-
-    return res.status(200).json({
-      success: true,
-      videoId: savedVideo._id,
-      videoUrl: signedUrl,
-    });
-  } catch (error) {
-    console.error("❌ Upload error:", error);
-    return res.status(500).json({ error: 'Upload failed' });
-  }
-};
-
-
 export const getB2SignedUrl = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
     const { fileName, fileType } = req.body;
-    if (!fileName || !fileType) return res.status(400).json({ error: 'Missing filename or fileType' });
+    if (!fileName || !fileType) {
+      return res.status(400).json({ error: 'Missing fileName or fileType' });
+    }
 
     const key = `uploads/${Date.now()}_${fileName}`;
 
     const params = {
       Bucket: process.env.B2_BUCKET_NAME,
       Key: key,
-      Expires: 60 * 10, // 10 minutes
+      Expires: 600, // 10 mins
       ContentType: fileType,
     };
 
@@ -104,7 +39,6 @@ export const getB2SignedUrl = async (req, res) => {
     res.status(500).json({ error: 'Failed to generate signed URL' });
   }
 };
-
 export const saveB2Metadata = async (req, res) => {
   try {
     const { originalFileName, key, quality, lengthInSeconds } = req.body;
@@ -267,5 +201,71 @@ export const getAllUploadsAuthenticated = async (req, res) => {
   } catch (error) {
     console.error("❌ Error fetching uploads:", error);
     return res.status(500).json({ success: false, message: 'Failed to fetch uploads' });
+  }
+};
+
+export const uploadToB2 = async (req, res) => {
+  try {
+    const file = req.file;
+       const { lengthInSeconds, quality } = req.body;
+    if (!file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const uniqueFileName = `uploads/${Date.now()}_${file.originalname}`;
+
+    const uploadParams = {
+      Bucket: process.env.B2_BUCKET_NAME,
+      Key: uniqueFileName,
+      Body: file.buffer, // From memory storage
+      ContentType: file.mimetype,
+    };
+
+    const result = await s3.upload(uploadParams).promise();
+
+    const signedUrl = s3.getSignedUrl('getObject', {
+      Bucket: process.env.B2_BUCKET_NAME,
+      Key: uniqueFileName,
+      Expires: 60 * 60 * 24 * 7, // 7 days
+    });
+
+    const savedVideo = await Video.create({
+      user: user._id,
+      originalFileName: file.originalname,
+      b2Url: signedUrl,
+       lengthInSeconds,
+      quality,
+    });
+
+    const emailHtml = generateEmailTemplate({
+      firstName: user.firstName || "there",
+      subject: '🎉 Your Video Upload was Successful!',
+      content: `
+        <p style="color:#fff;">Hi ${user.firstName},</p>
+        <p style="color:#fff;">Your video <strong>${file.originalname}</strong> has been successfully uploaded.</p>
+        <p style="color:#fff;">We'll begin converting it to 3D shortly. You will receive another email once it's done.</p>
+        <p style="color:#fff;">You can download/view the original file here:</p>
+        <a href="${signedUrl}" style="color: #FF5722;">${signedUrl}</a>
+      `,
+    });
+
+    await transporter.sendMail({
+      from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+      to: user.email,
+      subject: '✅ Your Video is Uploaded – Xclusive 3D',
+      html: emailHtml,
+    });
+
+    console.log(`📩 Email sent to ${user.email} for video: ${file.originalname}`);
+
+    return res.status(200).json({
+      success: true,
+      videoId: savedVideo._id,
+      videoUrl: signedUrl,
+    });
+  } catch (error) {
+    console.error("❌ Upload error:", error);
+    return res.status(500).json({ error: 'Upload failed' });
   }
 };

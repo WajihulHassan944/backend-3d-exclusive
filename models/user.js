@@ -23,6 +23,11 @@ const schema = new mongoose.Schema({
     type: String,
     select: false,
   },
+  hasFreeConversion: {
+  type: Boolean,
+  default: true, // one-time gift on registration
+},
+
   country: {
     type: String,
   },
