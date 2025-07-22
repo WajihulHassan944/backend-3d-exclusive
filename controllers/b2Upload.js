@@ -195,8 +195,8 @@ export const getAllUploadsAuthenticated = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      count: formattedVideos.length,
-      videos: formattedVideos,
+      count: videos.length,
+      videos: videos,
     });
   } catch (error) {
     console.error("❌ Error fetching uploads:", error);
