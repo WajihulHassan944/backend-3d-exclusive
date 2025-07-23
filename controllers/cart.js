@@ -4,15 +4,16 @@ import { Cart } from "../models/cart.js";
 export const addCreditsToCart = async (req, res) => {
   try {
     const userId = req.user._id;
-    const { amount } = req.body;
+   const { amount, credits } = req.body;
 
-    if (!amount) {
-      return res.status(400).json({ success: false, error: "Missing amount" });
-    }
+if (!amount || !credits) {
+  return res.status(400).json({ success: false, error: "Missing amount or credits" });
+}
 
     let cart = await Cart.findOne({ user: userId });
 
-    const newCredit = { amount };
+const newCredit = { amount, credits };
+
 
     if (cart) {
       cart.credits.push(newCredit);

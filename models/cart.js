@@ -5,6 +5,10 @@ const creditItemSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  credits: {
+  type: String,
+},
+
   addedAt: {
     type: Date,
     default: Date.now,

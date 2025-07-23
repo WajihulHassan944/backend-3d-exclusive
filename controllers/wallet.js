@@ -154,7 +154,7 @@ export const removeCard = async (req, res, next) => {
 // POST /api/wallet/add-funds
 export const addFundsToWallet = async (req, res, next) => {
   try {
-    const { userId, amount } = req.body;
+    const { userId, amount, billingInfo, credits } = req.body;
 
     if (!userId || !amount) {
       return next(new ErrorHandler("User ID and amount are required", 400));
@@ -175,34 +175,63 @@ export const addFundsToWallet = async (req, res, next) => {
       return next(new ErrorHandler("No primary card found. Please add a billing method first.", 400));
     }
 
-    // Create payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100),
-      currency: "usd",
-      customer: wallet.stripeCustomerId,
-      payment_method: primaryCard.stripeCardId,
-      off_session: true,
-      confirm: true,
-      description: `Wallet top-up for ${user.firstName} (${user.email})`,
-      metadata: {
-        userId: user._id.toString(),
-        email: user.email,
-        purpose: "wallet_topup",
-      },
-    });
+    // Optional: Basic validation for billingInfo
+    const requiredFields = ["street", "postalCode", "city", "country"];
+    for (const field of requiredFields) {
+      if (!billingInfo?.[field]) {
+        return next(new ErrorHandler(`Billing field "${field}" is required.`, 400));
+      }
+    }
+
+   // Create payment intent in EUR
+const paymentIntent = await stripe.paymentIntents.create({
+  amount: Math.round(amount * 100),
+  currency: "eur", // changed to euro
+  customer: wallet.stripeCustomerId,
+  payment_method: primaryCard.stripeCardId,
+  off_session: true,
+  confirm: true,
+description: `Purchased ${credits.reduce((sum, c) => sum + Number(c.credits), 0)} credits for €${amount.toFixed(2)} to top up the credit balance.`,
+
+  metadata: {
+    userId: user._id.toString(),
+    email: user.email,
+   creditsPurchased: JSON.stringify(credits),
+    purpose: "wallet_topup",
+  },
+});
 
     if (paymentIntent.status !== "succeeded") {
       return next(new ErrorHandler("Stripe payment failed", 402));
     }
 
     // Update wallet balance and log transaction
-    wallet.balance += amount;
-    wallet.transactions.push({
-      type: "credit",
-      amount,
-      description: "Wallet Top-Up",
-    });
+   wallet.balance += amount;
+wallet.transactions.push({
+  type: "credit",
+  amount,
+  currency: "EUR",
+  credits,
+description: `Purchased ${credits.reduce((sum, c) => sum + Number(c.credits), 0)} credits for €${amount.toFixed(2)} to top up the credit balance.`,
 
+  stripePayment: {
+    id: paymentIntent.id,
+    amount: paymentIntent.amount / 100,
+    currency: paymentIntent.currency,
+    payment_method: paymentIntent.payment_method,
+    receipt_url: paymentIntent.charges?.data?.[0]?.receipt_url || null,
+    created: paymentIntent.created,
+    status: paymentIntent.status,
+  },
+  billingInfo: {
+    street: billingInfo.street,
+    postalCode: billingInfo.postalCode,
+    city: billingInfo.city,
+    country: billingInfo.country,
+    companyName: billingInfo.companyName || "",
+    vatNumber: billingInfo.vatNumber || "",
+  },
+});
     await wallet.save();
 
     return res.status(200).json({
@@ -218,8 +247,7 @@ export const addFundsToWallet = async (req, res, next) => {
         currency: paymentIntent.currency,
         status: paymentIntent.status,
         payment_method: paymentIntent.payment_method,
-      receipt_url: paymentIntent.charges?.data?.[0]?.receipt_url || null,
-
+        receipt_url: paymentIntent.charges?.data?.[0]?.receipt_url || null,
         created: paymentIntent.created,
       },
     });
