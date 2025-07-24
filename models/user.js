@@ -27,6 +27,10 @@ const schema = new mongoose.Schema({
   type: Boolean,
   default: true, // one-time gift on registration
 },
+newsletterOptIn: {
+  type: Boolean,
+  default: false,
+},
 
   country: {
     type: String,

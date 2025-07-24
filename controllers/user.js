@@ -249,8 +249,8 @@ export const register = async (req, res, next) => {
       email,
       password,
       country,
+      subscribeNewsletter,
     } = req.body;
-
     const existingUser = await User.findOne({ email });
 
     
@@ -287,10 +287,39 @@ export const register = async (req, res, next) => {
       password: hashedPassword,
       country,
       profileUrl,
+       newsletterOptIn: subscribeNewsletter === 'true',
     };
 
    
     const user = await User.create(newUserData);
+if (subscribeNewsletter === 'true') {
+  try {
+    const res = await fetch(`https://connect.mailerlite.com/api/subscribers`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${process.env.MAILER_LITE}`,
+      },
+      body: JSON.stringify({
+        email,
+        name: `${firstName} ${lastName}`.trim(),
+        groups: ['160816159398036489'], // ✅ your group ID
+      }),
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      console.error('MailerLite subscription failed:', data);
+    } else {
+      console.log('MailerLite subscription successful:', data);
+    }
+  } catch (err) {
+    console.error('MailerLite request error:', err.message);
+  }
+}
+
 
     const stripeCustomer = await stripe.customers.create({
       email: user.email,

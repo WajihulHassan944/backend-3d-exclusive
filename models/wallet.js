@@ -39,6 +39,7 @@ const walletSchema = new mongoose.Schema({
       description: String,
       createdAt: { type: Date, default: Date.now },
       billingInfo: {
+        name: String,
         street: String,
         postalCode: String,
         city: String,

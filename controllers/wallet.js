@@ -176,7 +176,7 @@ export const addFundsToWallet = async (req, res, next) => {
     }
 
     // Optional: Basic validation for billingInfo
-    const requiredFields = ["street", "postalCode", "city", "country"];
+    const requiredFields = ["name","street", "postalCode", "city", "country"];
     for (const field of requiredFields) {
       if (!billingInfo?.[field]) {
         return next(new ErrorHandler(`Billing field "${field}" is required.`, 400));
@@ -224,6 +224,7 @@ description: `Purchased ${credits.reduce((sum, c) => sum + Number(c.credits), 0)
     status: paymentIntent.status,
   },
   billingInfo: {
+    name: billingInfo.name,
     street: billingInfo.street,
     postalCode: billingInfo.postalCode,
     city: billingInfo.city,
