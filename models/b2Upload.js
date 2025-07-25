@@ -14,6 +14,11 @@ const videoSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
+  convertedUrl: {
+    type: String,
+    required: false,
+    default:"",
+  },
     lengthInSeconds: {
     type: Number,
   },
@@ -21,21 +26,14 @@ const videoSchema = new mongoose.Schema({
   type: String,
   enum: ["MV-HEVC", "Full Side by Side"],
 },
-
 quality: {
   type: String,
   required: false,
 },
-
-
-
   status: {
     type: String,
     enum: ["uploaded", "processing", "completed", "failed"],
     default: "uploaded",
-  },
-  convertedUrl: {
-    type: String,
   },
   createdAt: {
     type: Date,

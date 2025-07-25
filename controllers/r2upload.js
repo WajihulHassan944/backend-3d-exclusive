@@ -8,8 +8,8 @@ import generateEmailTemplate from '../utils/emailTemplate.js';
 import { Wallet } from '../models/wallet.js';
 const r2Client = new S3Client({
   endpoint: process.env.R2_ENDPOINT,
-  forcePathStyle: true, // ✅ this makes sure bucket is in path instead of subdomain
-  region: 'us-east-1', // ✅ use any dummy region (Cloudflare ignores it)
+  forcePathStyle: true, 
+  region: 'us-east-1', 
   credentials: {
     accessKeyId: process.env.R2_ACCESS_KEY_ID,
     secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
@@ -106,8 +106,6 @@ export const saveR2Metadata = async (req, res) => {
         <p style="color:#fff;">Hi ${user.firstName},</p>
         <p style="color:#fff;">Your video <strong>${originalFileName}</strong> has been successfully uploaded.</p>
         <p style="color:#fff;">We'll begin converting it to 3D shortly. You will receive another email once it's done.</p>
-        <p style="color:#fff;">You can download/view the original file here:</p>
-        <a href="${signedUrl}" style="color: #FF5722;">${signedUrl}</a>
       `,
     });
 
@@ -128,5 +126,82 @@ export const saveR2Metadata = async (req, res) => {
   } catch (err) {
     console.error('❌ Metadata error:', err);
     res.status(500).json({ error: 'Metadata save failed' });
+  }
+};
+
+
+export const updateVideoStatusOrCompletion = async (req, res) => {
+
+  try {
+    const { videoId, plainUrl, status } = req.body;
+ 
+    if (!videoId) {
+      return res.status(400).json({ error: "Missing videoId" });
+    }
+
+    const video = await Video.findById(videoId).populate("user");
+    if (!video) return res.status(404).json({ error: "Video not found" });
+
+    // Update only status (e.g. "processing")
+    if (status && (!plainUrl || status !== "completed")) {
+      video.status = status;
+      await video.save();
+
+      return res.status(200).json({
+        success: true,
+        message: `Video status updated to "${status}"`,
+      });
+    }
+
+    // If status is "completed" and plainUrl is present
+    if (status === "completed" && plainUrl) {
+      const urlObj = new URL(plainUrl);
+      const key = decodeURIComponent(urlObj.pathname.replace(/^\/+/, ""));
+
+      const getObjectCommand = new GetObjectCommand({
+        Bucket: process.env.R2_BUCKET_NAME,
+        Key: key,
+      });
+
+      const signedUrl = await getSignedUrl(r2Client, getObjectCommand, {
+        expiresIn: 60 * 60 * 24 * 7,
+      });
+
+      video.status = "completed";
+      video.convertedUrl = signedUrl;
+      await video.save();
+
+      const user = video.user;
+
+      const emailHtml = generateEmailTemplate({
+        firstName: user.firstName || "there",
+        subject: "🚀 Your Video is Ready!",
+        content: `
+          <p style="color:#fff;">Hi ${user.firstName},</p>
+          <p style="color:#fff;">Your video <strong>${video.originalFileName}</strong> has been successfully converted to 3D.</p>
+          <p style="color:#fff;">You can <a href="${signedUrl}" style="color:#00f;">click here</a> to view or download it.</p>
+        `,
+      });
+
+      await transporter.sendMail({
+        from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+        to: user.email,
+        subject: "✅ Your 3D Video is Ready – Xclusive 3D",
+        html: emailHtml,
+      });
+
+      console.log(`📩 Completion email sent to ${user.email} for video ${video.originalFileName}`);
+
+      return res.status(200).json({
+        success: true,
+        message: "Video marked as completed and user notified",
+        signedUrl,
+      });
+    }
+
+    return res.status(400).json({ error: "Invalid request: missing or mismatched fields" });
+  } catch (err) {
+    console.error("❌ Error updating video:", err);
+    return res.status(500).json({ error: "Server error while updating video" });
   }
 };
