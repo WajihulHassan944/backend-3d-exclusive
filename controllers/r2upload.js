@@ -182,7 +182,7 @@ key = key.replace(/^3d-uploads\//, ""); // clean redundant prefix
         content: `
           <p style="color:#fff;">Hi ${user.firstName},</p>
           <p style="color:#fff;">Your video <strong>${video.originalFileName}</strong> has been successfully converted to 3D.</p>
-          <p style="color:#fff;">You can <a href="${signedUrl}" style="color:#00f;">click here</a> to view or download it.</p>
+          <p style="color:#fff;">You can <a href="${signedUrl}" style="color:#ff8c2f;">click here</a> to view or download it.</p>
         `,
       });
 
