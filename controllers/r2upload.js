@@ -156,7 +156,10 @@ export const updateVideoStatusOrCompletion = async (req, res) => {
     // If status is "completed" and plainUrl is present
     if (status === "completed" && plainUrl) {
       const urlObj = new URL(plainUrl);
-      const key = decodeURIComponent(urlObj.pathname.replace(/^\/+/, ""));
+    // Remove any accidental duplicated "3d-uploads/" if present
+let key = decodeURIComponent(urlObj.pathname.replace(/^\/+/, ""));
+key = key.replace(/^3d-uploads\//, ""); // clean redundant prefix
+
 
       const getObjectCommand = new GetObjectCommand({
         Bucket: process.env.R2_BUCKET_NAME,
