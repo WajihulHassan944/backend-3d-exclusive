@@ -32,7 +32,7 @@ quality: {
 },
   status: {
     type: String,
-    enum: ["uploaded", "processing", "completed", "failed"],
+    enum: ["uploaded", "processing", "completed", "failed", "pending"],
     default: "uploaded",
   },
   createdAt: {
