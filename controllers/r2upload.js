@@ -6,6 +6,7 @@ import { Video } from '../models/b2Upload.js';
 import { transporter } from '../utils/mailer.js';
 import generateEmailTemplate from '../utils/emailTemplate.js';
 import { Wallet } from '../models/wallet.js';
+import { pusher } from '../utils/pusher.js';
 const r2Client = new S3Client({
   endpoint: process.env.R2_ENDPOINT,
   forcePathStyle: true, 
@@ -130,11 +131,18 @@ export const saveR2Metadata = async (req, res) => {
 };
 
 
+
 export const updateVideoStatusOrCompletion = async (req, res) => {
- console.log("📥 Incoming request body:", req.body); 
+  console.log("📥 Incoming request body:", req.body);
   try {
     const { videoId, plainUrl, status } = req.body;
- 
+    
+ if (status === "completed" && !plainUrl) {
+    return res.status(400).json({
+      error: "Missing plainUrl for completed status",
+    });
+  }
+
     if (!videoId) {
       return res.status(400).json({ error: "Missing videoId" });
     }
@@ -147,19 +155,22 @@ export const updateVideoStatusOrCompletion = async (req, res) => {
       video.status = status;
       await video.save();
 
+      // 🔔 Trigger status update via Pusher
+      await pusher.trigger(`exclusive`, "status-update", {
+       videoId, // required for matching
+      status
+      });
+
       return res.status(200).json({
         success: true,
         message: `Video status updated to "${status}"`,
       });
     }
 
-    // If status is "completed" and plainUrl is present
     if (status === "completed" && plainUrl) {
       const urlObj = new URL(plainUrl);
-    // Remove any accidental duplicated "3d-uploads/" if present
-let key = decodeURIComponent(urlObj.pathname.replace(/^\/+/, ""));
-key = key.replace(/^3d-uploads\//, ""); // clean redundant prefix
-
+      let key = decodeURIComponent(urlObj.pathname.replace(/^\/+/, ""));
+      key = key.replace(/^3d-uploads\//, "");
 
       const getObjectCommand = new GetObjectCommand({
         Bucket: process.env.R2_BUCKET_NAME,
@@ -194,6 +205,13 @@ key = key.replace(/^3d-uploads\//, ""); // clean redundant prefix
       });
 
       console.log(`📩 Completion email sent to ${user.email} for video ${video.originalFileName}`);
+
+      // 🔔 Trigger real-time "completed" update
+      await pusher.trigger(`exclusive`, "status-update", {
+       videoId,
+        status: "completed",
+        signedUrl,
+      });
 
       return res.status(200).json({
         success: true,
