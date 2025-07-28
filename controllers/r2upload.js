@@ -131,7 +131,7 @@ export const saveR2Metadata = async (req, res) => {
 
 
 export const updateVideoStatusOrCompletion = async (req, res) => {
-
+ console.log("📥 Incoming request body:", req.body); 
   try {
     const { videoId, plainUrl, status } = req.body;
  
