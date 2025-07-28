@@ -175,6 +175,7 @@ export const updateVideoStatusOrCompletion = async (req, res) => {
       const getObjectCommand = new GetObjectCommand({
         Bucket: process.env.R2_BUCKET_NAME,
         Key: key,
+        ResponseContentDisposition: 'attachment',
       });
 
       const signedUrl = await getSignedUrl(r2Client, getObjectCommand, {
