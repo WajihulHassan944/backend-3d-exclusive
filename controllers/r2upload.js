@@ -193,7 +193,7 @@ export const updateVideoStatusOrCompletion = async (req, res) => {
         content: `
           <p style="color:#fff;">Hi ${user.firstName},</p>
           <p style="color:#fff;">Your video <strong>${video.originalFileName}</strong> has been successfully converted to 3D.</p>
-          <p style="color:#fff;">You can <a href="${signedUrl}" style="color:#ff8c2f;">click here</a> to view or download it.</p>
+          <p style="color:#fff;">You can <a href="${signedUrl}" style="color:#ff8c2f;">click here</a> to download it.</p>
         `,
       });
 
