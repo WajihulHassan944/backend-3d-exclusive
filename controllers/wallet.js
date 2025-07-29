@@ -178,7 +178,6 @@ export const removeCard = async (req, res, next) => {
 
 export const addFundsToWallet = async (req, res, next) => {
   try {
-  await setupCountries();
     const { userId, amount, billingInfo, credits } = req.body;
 
     if (!userId || !amount) {
