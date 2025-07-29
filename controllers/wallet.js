@@ -1,9 +1,24 @@
 
 import ErrorHandler from "../middlewares/error.js";
+import { Invoice } from "../models/invoice.js";
 import { User } from "../models/user.js";
 import { Wallet } from "../models/wallet.js";
+import { generateInvoiceNumber } from "../utils/generateInvoiceNumber.js";
 import stripe from "../utils/stripe.js";
-import mongoose from "mongoose";
+import { isValidEUCountry, validateVATNumber } from "../utils/vat.js";
+
+import countries from 'i18n-iso-countries';
+import enLocale from 'i18n-iso-countries/langs/en.json' assert { type: 'json' };
+
+countries.registerLocale(enLocale);
+
+
+export const getCountryCode = (countryName) => {
+  if (!countryName) return null;
+  return countries.getAlpha2Code(countryName, 'en');
+};
+
+
 
 // POST /api/wallet/add-billing-method
 export const addBillingMethod = async (req, res, next) => {
@@ -150,8 +165,6 @@ export const removeCard = async (req, res, next) => {
 };
 
 
-
-// POST /api/wallet/add-funds
 export const addFundsToWallet = async (req, res, next) => {
   try {
     const { userId, amount, billingInfo, credits } = req.body;
@@ -170,77 +183,129 @@ export const addFundsToWallet = async (req, res, next) => {
       return next(new ErrorHandler("Wallet not found", 404));
     }
 
-    const primaryCard = wallet.cards.find((card) => card.isPrimary);
+    const primaryCard = wallet.cards.find(card => card.isPrimary);
     if (!primaryCard) {
       return next(new ErrorHandler("No primary card found. Please add a billing method first.", 400));
     }
 
-    // Optional: Basic validation for billingInfo
-    const requiredFields = ["name","street", "postalCode", "city", "country"];
+    // 🧾 Validate billing fields
+    const requiredFields = ["name", "street", "postalCode", "city", "country"];
     for (const field of requiredFields) {
       if (!billingInfo?.[field]) {
         return next(new ErrorHandler(`Billing field "${field}" is required.`, 400));
       }
     }
 
-   // Create payment intent in EUR
-const paymentIntent = await stripe.paymentIntents.create({
-  amount: Math.round(amount * 100),
-  currency: "eur", // changed to euro
-  customer: wallet.stripeCustomerId,
-  payment_method: primaryCard.stripeCardId,
-  off_session: true,
-  confirm: true,
-description: `Purchased ${credits.reduce((sum, c) => sum + Number(c.credits), 0)} credits for €${amount.toFixed(2)} to top up the credit balance.`,
+    // 🏛️ EU VAT handling
+    let vatRate = 0;
+    let isReverseCharge = false;
+    let vatNote = "";
+    let vatAmount = 0;
 
-  metadata: {
-    userId: user._id.toString(),
-    email: user.email,
-   creditsPurchased: JSON.stringify(credits),
-    purpose: "wallet_topup",
-  },
-});
+    const rawCountry = billingInfo.country;
+    console.log("🌍 Raw Country:", rawCountry);
+
+    const countryCode = getCountryCode(rawCountry);
+    console.log("🌐 Country Code:", countryCode);
+
+    const vatNumber = billingInfo.vatNumber?.toUpperCase() || null;
+    const isEU = isValidEUCountry(countryCode);
+    console.log("🇪🇺 Is EU country:", isEU);
+    console.log("🧾 VAT Number Provided:", vatNumber);
+
+    if (countryCode === "NL") {
+      vatRate = 0.21;
+    } else if (isEU) {
+      if (vatNumber) {
+        const isValid = await validateVATNumber(vatNumber, countryCode);
+        console.log("✅ VAT Number Valid:", isValid);
+        if (isValid) {
+          isReverseCharge = true;
+          vatNote = "VAT reverse charged pursuant to Article 138 of Directive 2006/112/EC";
+          vatRate = 0;
+        } else {
+          vatRate = 0.21;
+        }
+      } else {
+        vatRate = 0.21;
+      }
+    } else {
+      vatRate = 0;
+    }
+
+    // 💶 Calculate totals
+    vatAmount = amount * vatRate;
+    const totalAmount = amount + vatAmount;
+
+    console.log("💸 Base Amount:", amount);
+    console.log("📈 VAT Rate:", vatRate);
+    console.log("💰 VAT Amount:", vatAmount);
+    console.log("🧾 Total Charged to Customer:", totalAmount);
+
+    // 📄 Prepare Stripe payment description
+    const description = `Purchased ${credits.reduce((sum, c) => sum + Number(c.credits), 0)} credits for €${totalAmount.toFixed(2)} (incl. VAT)`;
+
+    // 💳 Create Stripe payment intent
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(totalAmount * 100), // Stripe expects amount in cents
+      currency: "eur",
+      customer: wallet.stripeCustomerId,
+      payment_method: primaryCard.stripeCardId,
+      off_session: true,
+      confirm: true,
+      description,
+      metadata: {
+        userId: user._id.toString(),
+        email: user.email,
+        creditsPurchased: JSON.stringify(credits),
+        purpose: "wallet_topup",
+        vatRate: vatRate.toString(),
+        reverseCharge: isReverseCharge.toString(),
+        countryCode,
+        vatNumber: vatNumber || "none",
+        totalCharged: totalAmount.toString(),
+      },
+    });
 
     if (paymentIntent.status !== "succeeded") {
       return next(new ErrorHandler("Stripe payment failed", 402));
     }
 
-    // Update wallet balance and log transaction
-   wallet.balance += amount;
-wallet.transactions.push({
-  type: "credit",
-  amount,
-  currency: "EUR",
-  credits,
-description: `Purchased ${credits.reduce((sum, c) => sum + Number(c.credits), 0)} credits for €${amount.toFixed(2)} to top up the credit balance.`,
-
-  stripePayment: {
-    id: paymentIntent.id,
-    amount: paymentIntent.amount / 100,
-    currency: paymentIntent.currency,
-    payment_method: paymentIntent.payment_method,
-    receipt_url: paymentIntent.charges?.data?.[0]?.receipt_url || null,
-    created: paymentIntent.created,
-    status: paymentIntent.status,
-  },
-  billingInfo: {
-    name: billingInfo.name,
-    street: billingInfo.street,
-    postalCode: billingInfo.postalCode,
-    city: billingInfo.city,
-    country: billingInfo.country,
-    companyName: billingInfo.companyName || "",
-    vatNumber: billingInfo.vatNumber || "",
-  },
-});
+    // 💰 Update wallet
+    wallet.balance += amount; // only add the original amount to wallet
     await wallet.save();
+
+    // 🧾 Create invoice
+    const invoiceNumber = await generateInvoiceNumber();
+    await Invoice.create({
+      invoiceNumber,
+      user: user._id,
+      credits,
+      amount, // subtotal
+      vat: vatAmount,
+      total: totalAmount,
+      vatRate,
+      isReverseCharge,
+      vatNote,
+      currency: "EUR",
+      stripePaymentId: paymentIntent.id,
+      billingInfo: {
+        name: billingInfo.name,
+        street: billingInfo.street,
+        postalCode: billingInfo.postalCode,
+        city: billingInfo.city,
+        country: countryCode,
+        countryName: rawCountry,
+        companyName: billingInfo.companyName || "",
+        vatNumber,
+      },
+    });
 
     return res.status(200).json({
       success: true,
       message: "Funds added successfully to wallet.",
       wallet: {
         balance: wallet.balance,
-        transactions: wallet.transactions,
       },
       stripePayment: {
         id: paymentIntent.id,
@@ -264,131 +329,46 @@ description: `Purchased ${credits.reduce((sum, c) => sum + Number(c.credits), 0)
 };
 
 
-export const withdrawFunds = async (req, res, next) => {
+
+export const getWalletByUserId = async (req, res, next) => {
   try {
-    const { userId, amount } = req.body;
 
-    if (!userId || !amount || isNaN(amount) || amount <= 0) {
-      return next(new ErrorHandler("User ID and valid amount are required", 400));
+    const wallet = await Wallet.find();
+
+    if (!wallet) {
+      return next(new ErrorHandler("Wallet not found", 404));
     }
-
-    const user = await User.findById(userId);
-    if (!user) return next(new ErrorHandler("User not found", 404));
-
-    // Ensure Stripe Connect account exists
-    const { accountId, onboardingUrl } = await ensureStripeConnectAccount(user);
-
-    if (!accountId) {
-      return next(new ErrorHandler("Failed to create Stripe account", 500));
-    }
-
-    // If onboarding is required (new account), return the onboarding URL
-    if (onboardingUrl) {
-      return res.status(200).json({
-        success: false,
-        requiresOnboarding: true,
-        message: "Stripe onboarding required.",
-        onboardingUrl,
-      });
-    }
-
-    const wallet = await Wallet.findOne({ userId });
-    if (!wallet) return next(new ErrorHandler("Wallet not found", 404));
-
-    if (wallet.balance < amount) {
-      return next(new ErrorHandler("Insufficient balance.", 400));
-    }
-
-    // Create the payout
-    const payout = await stripe.transfers.create({
-      amount: Math.round(amount * 100),
-      currency: "usd",
-      destination: accountId,
-      description: `Withdrawal for ${user.firstName} (${user.email})`,
-      metadata: {
-        userId: user._id.toString(),
-        purpose: "wallet_withdrawal",
-      },
-    });
-
-    // Deduct from wallet
-    wallet.balance -= amount;
-    wallet.transactions.push({
-      type: "debit",
-      amount,
-      description: "Wallet Withdrawal",
-    });
-
-    await wallet.save();
 
     res.status(200).json({
       success: true,
-      message: "Withdrawal processed successfully.",
-      stripeTransfer: payout,
-      wallet: {
-        balance: wallet.balance,
-        transactions: wallet.transactions,
-      },
+      wallet,
     });
-
   } catch (error) {
-    console.error("❌ Error in withdrawFunds:", error);
-    next(new ErrorHandler(error.message || "Withdrawal failed.", 500));
+    next(error);
   }
 };
 
-const ensureStripeConnectAccount = async (user) => {
-  // If user already has a Stripe account ID, return it
-  if (user.stripeAccountId) {
-    return { accountId: user.stripeAccountId };
+
+
+
+export const validateVATfunc = async (req, res) => {
+  try {
+    const { vatNumber, countryCode } = req.body;
+
+    if (!vatNumber || !countryCode) {
+      return res.status(400).json({ success: false, message: "vatNumber and countryCode are required." });
+    }
+
+    const isValid = await validateVATNumber(vatNumber, countryCode);
+
+    return res.status(200).json({
+      success: true,
+      vatNumber,
+      countryCode,
+      isValid
+    });
+  } catch (error) {
+    console.error("Error validating VAT:", error);
+    return res.status(500).json({ success: false, message: "Internal server error" });
   }
-
-  // Create Express Stripe Connect account
-  const account = await stripe.accounts.create({
-    type: "express", // ✅ express for embedded onboarding
-    country: "MY", // Change to "US" if testing internationally
-    email: user.email,
-    business_type: "individual",
-    capabilities: {
-      transfers: { requested: true }, // Needed for payouts
-    },
-  });
-
-  // Save account ID to user
-  user.stripeAccountId = account.id;
-  await user.save();
-
-  // Create onboarding link
-  const accountLink = await stripe.accountLinks.create({
-    account: account.id,
-    refresh_url: `${process.env.CLIENT_URL}/settings/billing`,
-    return_url: `${process.env.CLIENT_URL}/settings/billing`,
-    type: "account_onboarding",
-  });
-
-  return {
-    accountId: account.id,
-    onboardingUrl: accountLink.url,
-  };
 };
-
-
-const countryMap = {
-  "United States": "US",
-  "Pakistan": "PK",
-  "United Kingdom": "GB",
-  "India": "IN",
-  "Canada": "CA",
-  "Germany": "DE",
-  "France": "FR",
-  "Australia": "AU",
-  "Brazil": "BR",
-  "UAE": "AE",
-  "Malaysia": "MY"
-};
-
-function getISOCode(countryName) {
-  if (!countryName) return null;
-  return countryMap[countryName.trim()] || null;
-}
-

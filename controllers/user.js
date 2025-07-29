@@ -15,6 +15,22 @@ import { Video } from '../models/b2Upload.js';
 import { Cart } from "../models/cart.js";
 
 
+
+
+import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { Invoice } from "../models/invoice.js";
+
+const r2Client = new S3Client({
+  endpoint: process.env.R2_ENDPOINT,
+  forcePathStyle: true,
+  region: 'us-east-1',
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+  },
+});
+
+
 const fetchGoogleProfile = async (accessToken) => {
   const res = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
     headers: {
@@ -160,23 +176,56 @@ export const deleteUserById = async (req, res, next) => {
     const { id } = req.params;
 
     const user = await User.findById(id);
-    if (!user) return next(new ErrorHandler("User not found", 404));
+    if (!user) return next(new ErrorHandler('User not found', 404));
 
-    // Delete the profile image from Cloudinary (if exists)
+    // Delete profile image from Cloudinary
     if (user.profileUrl) {
       const segments = user.profileUrl.split('/');
-      const publicIdWithExtension = segments[segments.length - 1]; // tieanrvu1hh8hmtkfeff.jpg
-      const publicId = publicIdWithExtension.split('.')[0]; // tieanrvu1hh8hmtkfeff
-
+      const publicIdWithExtension = segments[segments.length - 1];
+      const publicId = publicIdWithExtension.split('.')[0];
       await cloudinary.uploader.destroy(`user_profiles/${publicId}`);
     }
 
-    // Delete the user from MongoDB
+    // Delete all user videos and files from R2
+    const videos = await Video.find({ user: id });
+    for (const video of videos) {
+      const r2Keys = [];
+
+      // Extract R2 key from b2Url
+      if (video.b2Url) {
+        const key = new URL(video.b2Url).pathname.slice(1); // remove leading slash
+        r2Keys.push(key);
+      }
+
+      // Extract R2 key from convertedUrl if exists
+      if (video.convertedUrl) {
+        const key = new URL(video.convertedUrl).pathname.slice(1);
+        r2Keys.push(key);
+      }
+
+      for (const key of r2Keys) {
+        await r2Client.send(new DeleteObjectCommand({
+          Bucket: process.env.R2_BUCKET_NAME,
+          Key: key,
+        }));
+      }
+    }
+
+    // Delete videos from MongoDB
+    await Video.deleteMany({ user: id });
+
+    // Delete wallet
+    await Wallet.findOneAndDelete({ userId: id });
+
+    // Delete cart/credits
+    await Cart.findOneAndDelete({ user: id });
+
+    // Finally, delete user
     await user.deleteOne();
 
     res.status(200).json({
       success: true,
-      message: `User ${user.firstName} ${user.lastName} and associated data deleted successfully.`,
+      message: `User ${user.firstName} ${user.lastName} and all associated data deleted successfully.`,
     });
   } catch (error) {
     next(error);
@@ -419,13 +468,14 @@ export const getMyProfile = async (req, res, next) => {
     const wallet = await Wallet.findOne({ userId });
     const videos = await Video.find({ user: userId }).sort({ createdAt: -1 });
     const cart = await Cart.findOne({ user: userId });
-
+    const invoices = await Invoice.find({ user: userId }).sort({ issuedAt: -1 });
     res.status(200).json({
       success: true,
       user,
       wallet,
       videos,
       cart,
+      invoices
     });
   } catch (error) {
     next(error);

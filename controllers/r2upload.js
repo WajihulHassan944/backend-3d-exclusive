@@ -48,13 +48,6 @@ export const getR2SignedUrl = async (req, res) => {
 
       // Deduct and record transaction
       wallet.balance -= cost;
-      wallet.transactions.push({
-        type: "debit",
-        amount: cost,
-        description: `Video conversion (${fileName})`,
-        createdAt: new Date(),
-      });
-
       await wallet.save();
       console.log(`💳 Charged ${cost} credits from ${user.email}`);
     }

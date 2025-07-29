@@ -23,41 +23,6 @@ const walletSchema = new mongoose.Schema({
     default: 0.0,
   },
   cards: [cardSchema],
-  transactions: [
-    {
-      type: { type: String, enum: ["credit", "debit"] },
-      amount: Number,
-      currency: String, // e.g., EUR
-     credits: [
-  {
-    amount: Number,
-    credits: Number,
-    addedAt: Date,
-  }
-],
-
-      description: String,
-      createdAt: { type: Date, default: Date.now },
-      billingInfo: {
-        name: String,
-        street: String,
-        postalCode: String,
-        city: String,
-        country: String,
-        companyName: String,
-        vatNumber: String,
-      },
-      stripePayment: {
-        id: String,
-        amount: Number,
-        currency: String,
-        payment_method: String,
-        receipt_url: String,
-        created: Number,
-        status: String,
-      },
-    },
-  ],
 });
 
 export const Wallet = mongoose.model("Wallet", walletSchema);
