@@ -1,3 +1,7 @@
+import { readFileSync } from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 import ErrorHandler from "../middlewares/error.js";
 import { Invoice } from "../models/invoice.js";
 import { User } from "../models/user.js";
@@ -8,24 +12,23 @@ import { isValidEUCountry, validateVATNumber } from "../utils/vat.js";
 
 import countries from 'i18n-iso-countries';
 
-// Register locale dynamically to avoid top-level await
-let isCountriesInitialized = false;
+// Setup for ES modules (__dirname)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-async function setupCountries() {
-  if (!isCountriesInitialized) {
-    const enLocale = (await import('i18n-iso-countries/langs/en.json', {
-      assert: { type: 'json' },
-    })).default;
-    countries.registerLocale(enLocale);
-    isCountriesInitialized = true;
-  }
-}
+// Load and register 'en' locale manually
+const enLocaleRaw = readFileSync(
+  path.resolve(__dirname, '../node_modules/i18n-iso-countries/langs/en.json'),
+  'utf-8'
+);
+const enLocale = JSON.parse(enLocaleRaw);
+countries.registerLocale(enLocale);
 
-function getCountryCode(countryName) {
+// Helper to get country code
+export const getCountryCode = (countryName) => {
   if (!countryName) return null;
   return countries.getAlpha2Code(countryName, 'en');
-}
-
+};
 
 
 // POST /api/wallet/add-billing-method
