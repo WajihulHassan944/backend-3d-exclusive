@@ -1,4 +1,3 @@
-
 import ErrorHandler from "../middlewares/error.js";
 import { Invoice } from "../models/invoice.js";
 import { User } from "../models/user.js";
@@ -8,15 +7,24 @@ import stripe from "../utils/stripe.js";
 import { isValidEUCountry, validateVATNumber } from "../utils/vat.js";
 
 import countries from 'i18n-iso-countries';
-import enLocale from 'i18n-iso-countries/langs/en.json' assert { type: 'json' };
 
-countries.registerLocale(enLocale);
+// Register locale dynamically to avoid top-level await
+let isCountriesInitialized = false;
 
+async function setupCountries() {
+  if (!isCountriesInitialized) {
+    const enLocale = (await import('i18n-iso-countries/langs/en.json', {
+      assert: { type: 'json' },
+    })).default;
+    countries.registerLocale(enLocale);
+    isCountriesInitialized = true;
+  }
+}
 
-export const getCountryCode = (countryName) => {
+function getCountryCode(countryName) {
   if (!countryName) return null;
   return countries.getAlpha2Code(countryName, 'en');
-};
+}
 
 
 
@@ -167,6 +175,7 @@ export const removeCard = async (req, res, next) => {
 
 export const addFundsToWallet = async (req, res, next) => {
   try {
+  await setupCountries();
     const { userId, amount, billingInfo, credits } = req.body;
 
     if (!userId || !amount) {
