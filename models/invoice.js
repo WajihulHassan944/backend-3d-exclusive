@@ -13,8 +13,10 @@ const invoiceSchema = new mongoose.Schema({
   amount: { type: Number, required: true }, // subtotal (excluding VAT)
   vat: { type: Number, default: 0 },        // VAT amount
   vatRate: { type: Number, default: 0 },    // e.g. 0.21
+  
   isReverseCharge: { type: Boolean, default: false },
   vatNote: { type: String, default: "" },   // legal note if reverse charged
+method: { type: String, default: "" }, 
 
   total: { type: Number, required: true },  // amount + VAT
   currency: { type: String, default: 'EUR' },

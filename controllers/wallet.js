@@ -296,6 +296,7 @@ export const addFundsToWallet = async (req, res, next) => {
       vat: vatAmount,
       total: totalAmount,
       vatRate,
+      method: primaryCard.brand,
       isReverseCharge,
       vatNote,
       currency: "EUR",
@@ -340,6 +341,56 @@ export const addFundsToWallet = async (req, res, next) => {
 };
 
 
+export const getVat = async (req, res, next) => {
+ try {
+    const { vatNumber, country } = req.body;
+
+    if (!country) {
+      return res.status(400).json({ success: false, message: 'Country is required.' });
+    }
+
+    const countryCode = getCountryCode(country);
+    const isEU = isValidEUCountry(countryCode);
+    const normalizedVat = vatNumber?.toUpperCase() || null;
+
+    let vatRate = 0;
+    let vatAmount = 0;
+    let isReverseCharge = false;
+    let vatNote = '';
+    let isValidVat = false;
+
+    if (countryCode === 'NL') {
+      vatRate = 0.21;
+    } else if (isEU) {
+      if (normalizedVat) {
+        isValidVat = await validateVATNumber(normalizedVat, countryCode);
+        if (isValidVat) {
+          vatRate = 0;
+          isReverseCharge = true;
+          vatNote = 'VAT reverse charged pursuant to Article 138 of Directive 2006/112/EC';
+        } else {
+          vatRate = 0.21;
+        }
+      } else {
+        vatRate = 0.21;
+      }
+    } else {
+      vatRate = 0; // Outside EU
+    }
+
+    return res.status(200).json({
+      success: true,
+      vatRate,
+      isEU,
+      isReverseCharge,
+      isValidVat,
+      vatNote,
+    });
+  } catch (error) {
+    console.error('❌ VAT Check Error:', error);
+    return res.status(500).json({ success: false, message: 'Failed to validate VAT number.' });
+  }
+}
 
 export const getWalletByUserId = async (req, res, next) => {
   try {
