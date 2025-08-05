@@ -11,6 +11,19 @@ import stripe from "../utils/stripe.js";
 import { isValidEUCountry, validateVATNumber } from "../utils/vat.js";
 
 import countries from 'i18n-iso-countries';
+const countryToCurrencyMap = {
+  "Pakistan": "pkr",
+  "United States": "usd",
+  "United Kingdom": "gbp",
+  "Germany": "eur",
+  "France": "eur",
+  "Netherlands": "eur",
+  "India": "inr",
+  "United Arab Emirates": "aed",
+  "Canada": "cad",
+  // ...add more if needed
+};
+
 
 // Setup for ES modules (__dirname)
 const __filename = fileURLToPath(import.meta.url);
@@ -30,6 +43,86 @@ export const getCountryCode = (countryName) => {
   return countries.getAlpha2Code(countryName, 'en');
 };
 
+// POST /api/wallet/create-setup-intent
+export const createSetupIntent = async (req, res, next) => {
+  try {
+   const userAuth = req.user;
+    const userId = userAuth._id;
+    const user = await User.findById(userId);
+    if(user){
+      console.log("user found");
+    }
+    if (!user) return next(new ErrorHandler("User not found", 404));
+
+    let wallet = await Wallet.findOne({ userId });
+    if (!wallet) return next(new ErrorHandler("Wallet not found", 404));
+
+    // ✅ Step 1: Create Stripe customer if not exists
+    if (!wallet.stripeCustomerId) {
+      const customer = await stripe.customers.create({
+        email: user.email,
+        name: `${user.firstName} ${user.lastName}`,
+      });
+
+      wallet.stripeCustomerId = customer.id;
+      await wallet.save();
+    }
+
+    // ✅ Step 2: Create SetupIntent
+    const setupIntent = await stripe.setupIntents.create({
+      customer: wallet.stripeCustomerId,
+      payment_method_types: ['card'],
+    });
+
+    return res.status(200).json({
+      success: true,
+      clientSecret: setupIntent.client_secret,
+    });
+  } catch (error) {
+    console.error("❌ Error creating setup intent:", error);
+    next(error);
+  }
+};
+
+export const createSetupIntentAllMethods = async (req, res, next) => {
+  try {
+   const userAuth = req.user;
+    const userId = userAuth._id;
+    const user = await User.findById(userId);
+    if(user){
+      console.log("user found");
+    }
+    if (!user) return next(new ErrorHandler("User not found", 404));
+
+    let wallet = await Wallet.findOne({ userId });
+    if (!wallet) return next(new ErrorHandler("Wallet not found", 404));
+
+    // ✅ Step 1: Create Stripe customer if not exists
+    if (!wallet.stripeCustomerId) {
+      const customer = await stripe.customers.create({
+        email: user.email,
+        name: `${user.firstName} ${user.lastName}`,
+      });
+
+      wallet.stripeCustomerId = customer.id;
+      await wallet.save();
+    }
+
+    // ✅ Step 2: Create SetupIntent
+    const setupIntent = await stripe.setupIntents.create({
+      customer: wallet.stripeCustomerId,
+      payment_method_types: ['ideal', 'bancontact', 'sofort'],
+    });
+
+    return res.status(200).json({
+      success: true,
+      clientSecret: setupIntent.client_secret,
+    });
+  } catch (error) {
+    console.error("❌ Error creating setup intent:", error);
+    next(error);
+  }
+};
 
 // POST /api/wallet/add-billing-method
 export const addBillingMethod = async (req, res, next) => {
@@ -125,7 +218,6 @@ export const setPrimaryCard = async (req, res, next) => {
   wallet.cards.forEach(c => c.isPrimary = false);
   card.isPrimary = true;
 
-  // Optional: update Stripe default payment method
   await stripe.customers.update(wallet.stripeCustomerId, {
     invoice_settings: { default_payment_method: stripeCardId }
   });
@@ -178,7 +270,8 @@ export const removeCard = async (req, res, next) => {
 
 export const addFundsToWallet = async (req, res, next) => {
   try {
-    const { userId, amount, billingInfo, credits } = req.body;
+    const { userId, amount, billingInfo, credits, currencySymbol,  usePrimaryCard } = req.body;
+
 
     if (!userId || !amount) {
       return next(new ErrorHandler("User ID and amount are required", 400));
@@ -195,10 +288,7 @@ export const addFundsToWallet = async (req, res, next) => {
     }
 
     const primaryCard = wallet.cards.find(card => card.isPrimary);
-    if (!primaryCard) {
-      return next(new ErrorHandler("No primary card found. Please add a billing method first.", 400));
-    }
-
+    
     // 🧾 Validate billing fields
     const requiredFields = ["name", "street", "postalCode", "city", "country"];
     for (const field of requiredFields) {
@@ -213,7 +303,8 @@ export const addFundsToWallet = async (req, res, next) => {
     let vatNote = "";
     let vatAmount = 0;
 
-    const rawCountry = billingInfo.country;
+   const rawCountry = billingInfo.country || user.country;
+const stripeCurrency = countryToCurrencyMap[rawCountry] || "eur";
     console.log("🌍 Raw Country:", rawCountry);
 
     const countryCode = getCountryCode(rawCountry);
@@ -254,34 +345,63 @@ export const addFundsToWallet = async (req, res, next) => {
     console.log("🧾 Total Charged to Customer:", totalAmount);
 
     // 📄 Prepare Stripe payment description
-    const description = `Purchased ${credits.reduce((sum, c) => sum + Number(c.credits), 0)} credits for €${totalAmount.toFixed(2)} (incl. VAT)`;
+    const description = `Purchased ${credits.reduce((sum, c) => sum + Number(c.credits), 0)} credits for ${currencySymbol} ${totalAmount.toFixed(2)} (incl. VAT)`;
 
-    // 💳 Create Stripe payment intent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(totalAmount * 100), // Stripe expects amount in cents
-      currency: "eur",
-      customer: wallet.stripeCustomerId,
-      payment_method: primaryCard.stripeCardId,
-      off_session: true,
-      confirm: true,
-      description,
-      metadata: {
-        userId: user._id.toString(),
-        email: user.email,
-        creditsPurchased: JSON.stringify(credits),
-        purpose: "wallet_topup",
-        vatRate: vatRate.toString(),
-        reverseCharge: isReverseCharge.toString(),
-        countryCode,
-        vatNumber: vatNumber || "none",
-        totalCharged: totalAmount.toString(),
-      },
-    });
+   let stripePaymentDetails = null;
 
-    if (paymentIntent.status !== "succeeded") {
-      return next(new ErrorHandler("Stripe payment failed", 402));
-    }
+if (usePrimaryCard) {
+  const paymentIntent = await stripe.paymentIntents.create({
+    amount: Math.round(totalAmount * 100),
+    currency: stripeCurrency,
+    customer: wallet.stripeCustomerId,
+    payment_method: primaryCard.stripeCardId,
+    off_session: true,
+    confirm: true,
+    description,
+    metadata: {
+      userId: user._id.toString(),
+      email: user.email,
+      creditsPurchased: JSON.stringify(credits),
+      purpose: "wallet_topup",
+      vatRate: vatRate.toString(),
+      reverseCharge: isReverseCharge.toString(),
+      countryCode,
+      vatNumber: vatNumber || "none",
+      totalCharged: totalAmount.toString(),
+    },
+  });
 
+  if (paymentIntent.status !== "succeeded") {
+    return next(new ErrorHandler("Stripe payment failed", 402));
+  }
+
+  stripePaymentDetails = {
+    id: paymentIntent.id,
+    amount: paymentIntent.amount,
+    currency: paymentIntent.currency,
+    status: paymentIntent.status,
+    payment_method: paymentIntent.payment_method,
+    receipt_url: paymentIntent.charges?.data?.[0]?.receipt_url || null,
+    created: paymentIntent.created,
+    method: primaryCard.brand,
+  };
+
+} else {
+  // User paid via another method (e.g., iDEAL, Bancontact, Alipay)
+  // We assume payment is already handled via Stripe Elements setup
+  stripePaymentDetails = {
+    id: "manual-element",
+    amount: Math.round(totalAmount * 100),
+    currency: stripeCurrency,
+    status: "succeeded",
+    payment_method: "element",
+    receipt_url: null,
+    created: Date.now(),
+    method: "Stripe Element",
+  };
+}
+
+ 
     // 💰 Update wallet
     wallet.balance += amount; // only add the original amount to wallet
     await wallet.save();
@@ -296,11 +416,14 @@ export const addFundsToWallet = async (req, res, next) => {
       vat: vatAmount,
       total: totalAmount,
       vatRate,
-      method: primaryCard.brand,
+    method: stripePaymentDetails.method,
+
       isReverseCharge,
       vatNote,
-      currency: "EUR",
-      stripePaymentId: paymentIntent.id,
+     currency: currencySymbol || "EUR",
+
+     stripePaymentId: stripePaymentDetails.id,
+
       billingInfo: {
         name: billingInfo.name,
         street: billingInfo.street,
@@ -319,15 +442,8 @@ export const addFundsToWallet = async (req, res, next) => {
       wallet: {
         balance: wallet.balance,
       },
-      stripePayment: {
-        id: paymentIntent.id,
-        amount: paymentIntent.amount,
-        currency: paymentIntent.currency,
-        status: paymentIntent.status,
-        payment_method: paymentIntent.payment_method,
-        receipt_url: paymentIntent.charges?.data?.[0]?.receipt_url || null,
-        created: paymentIntent.created,
-      },
+     stripePayment: stripePaymentDetails
+
     });
 
   } catch (error) {

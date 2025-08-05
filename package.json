@@ -36,7 +36,8 @@
     "soap": "^1.2.1",
     "streamifier": "^0.1.1",
     "stripe": "^18.2.1",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "validator": "^13.15.15"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

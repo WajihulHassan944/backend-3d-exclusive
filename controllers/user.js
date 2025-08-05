@@ -14,6 +14,7 @@ import stripe from "../utils/stripe.js";
 import { Video } from '../models/b2Upload.js';
 import { Cart } from "../models/cart.js";
 
+import validator from 'validator'; // For email format checking
 
 
 
@@ -806,5 +807,169 @@ export const handleContactForm = async (req, res, next) => {
   } catch (error) {
     console.error("Contact form error:", error);
     return res.status(500).json({ success: false, message: "Something went wrong." });
+  }
+};
+
+
+
+export const toggleNewsletter = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+    // Toggle the preference
+    user.newsletterOptIn = !user.newsletterOptIn;
+    await user.save();
+
+    const fullName = `${user.firstName} ${user.lastName || ''}`.trim();
+    const mailerLiteUrl = 'https://connect.mailerlite.com/api/subscribers';
+
+    try {
+      if (user.newsletterOptIn) {
+        // Subscribe to MailerLite
+        const resMailer = await fetch(mailerLiteUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${process.env.MAILER_LITE}`,
+          },
+          body: JSON.stringify({
+            email: user.email,
+            name: fullName,
+            groups: ['160816159398036489'], // ✅ Replace with your group ID
+          }),
+        });
+
+        const data = await resMailer.json();
+        if (!resMailer.ok) {
+          console.error('MailerLite subscription failed:', data);
+        } else {
+          console.log('Subscribed to MailerLite:', data);
+        }
+      } else {
+        // Unsubscribe from MailerLite
+        const resMailer = await fetch(`https://connect.mailerlite.com/api/subscribers/${user.email}`, {
+          method: 'DELETE',
+          headers: {
+            'Accept': 'application/json',
+            'Authorization': `Bearer ${process.env.MAILER_LITE}`,
+          },
+        });
+
+        if (!resMailer.ok) {
+          const error = await resMailer.json();
+          console.error('MailerLite unsubscription failed:', error);
+        } else {
+          console.log('Unsubscribed from MailerLite');
+        }
+      }
+    } catch (mailerError) {
+      console.error('MailerLite request error:', mailerError.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Newsletter ${user.newsletterOptIn ? 'subscribed' : 'unsubscribed'} successfully.`,
+      newsletterOptIn: user.newsletterOptIn,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+
+
+
+
+export const subscribeNewsletter = async (req, res, next) => {
+  try {
+    const { email, name = '' } = req.body;
+
+    if (!email || !validator.isEmail(email)) {
+      return res.status(400).json({ success: false, message: 'Please enter a valid email address.' });
+    }
+
+    // 1. Subscribe to MailerLite
+    const response = await fetch('https://connect.mailerlite.com/api/subscribers', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${process.env.MAILER_LITE}`,
+      },
+      body: JSON.stringify({
+        email,
+        name,
+        groups: ['160816159398036489'],
+      }),
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      console.error('MailerLite subscription failed:', result);
+      return res.status(500).json({ success: false, message: 'Subscription failed. Please try again later.' });
+    }
+
+    // 2. Send welcome email
+    const unsubscribeUrl = `https://backend-3d-exclusive.vercel.app/api/users/unsubscribe?email=${encodeURIComponent(email)}`;
+    const html = generateEmailTemplate({
+      firstName: name || 'there',
+      subject: "You're subscribed to Xclusive 3D!",
+      content: `
+        <p>Hi ${name || 'there'},</p>
+        <p>Thanks for subscribing to <strong>Xclusive 3D</strong>! We're glad to have you on board.</p>
+        <p>Expect the latest updates on 3D content, exclusive deals, and more.</p>
+        <p>If you'd ever like to stop receiving emails, just click here:</p>
+        <p><a href="${unsubscribeUrl}" style="color:#f97316;">Unsubscribe</a></p>
+      `,
+    });
+
+    await transporter.sendMail({
+      from: `"Xclusive 3D Newsletter" <${process.env.ADMIN_EMAIL}>`,
+      to: email,
+      subject: "🎉 Welcome to Xclusive 3D",
+      html,
+    });
+
+    return res.status(200).json({ success: true, message: 'You’ve been successfully subscribed!' });
+
+  } catch (error) {
+    console.error('Newsletter subscription error:', error);
+    return res.status(500).json({ success: false, message: 'Something went wrong.' });
+  }
+};
+
+
+
+export const unsubscribeNewsletter = async (req, res, next) => {
+  try {
+    const { email } = req.query;
+
+    if (!email || !validator.isEmail(email)) {
+      return res.redirect('https://frontend-3d-exclusive.vercel.app/newsletter?unsubscribed=failure');
+    }
+
+    const response = await fetch(`https://connect.mailerlite.com/api/subscribers/${email}`, {
+      method: 'DELETE',
+      headers: {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${process.env.MAILER_LITE}`,
+      },
+    });
+
+    if (!response.ok) {
+      console.error('Unsubscribe failed:', await response.json());
+      return res.redirect('https://frontend-3d-exclusive.vercel.app/newsletter?unsubscribed=failure');
+    }
+
+    return res.redirect('https://frontend-3d-exclusive.vercel.app/newsletter?unsubscribed=success');
+
+  } catch (error) {
+    console.error('Unsubscribe error:', error);
+    return res.redirect('https://frontend-3d-exclusive.vercel.app/newsletter?unsubscribed=failure');
   }
 };
