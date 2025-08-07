@@ -83,15 +83,11 @@ export const createSetupIntent = async (req, res, next) => {
     next(error);
   }
 };
-
 export const createSetupIntentAllMethods = async (req, res, next) => {
   try {
-   const userAuth = req.user;
+    const userAuth = req.user;
     const userId = userAuth._id;
     const user = await User.findById(userId);
-    if(user){
-      console.log("user found");
-    }
     if (!user) return next(new ErrorHandler("User not found", 404));
 
     let wallet = await Wallet.findOne({ userId });
@@ -108,18 +104,42 @@ export const createSetupIntentAllMethods = async (req, res, next) => {
       await wallet.save();
     }
 
-    // ✅ Step 2: Create SetupIntent
+    // ✅ Step 2: Get country via IP
+    const ip =
+      req.headers['x-forwarded-for']?.split(',')[0] ||
+      req.connection.remoteAddress ||
+      'me'; // 'me' lets ipwho.is auto-detect server/client IP
+
+    const geoRes = await fetch(`https://ipwho.is/${ip}`);
+    const geoData = await geoRes.json();
+    const userCountry = geoData?.country_code; // fallback to US if error
+
+    // ✅ Step 3: Map country to payment methods
+    const paymentMethodsMap = {
+      NL: ['ideal', 'card'],
+      DE: ['sofort', 'card'],
+      BE: ['bancontact', 'card'],
+      FR: ['card'],
+      CN: ['alipay', 'card'],
+      PK: ['card'],
+      // Extend as needed...
+    };
+
+    const paymentMethods = paymentMethodsMap[userCountry] || ['card'];
+
+    // ✅ Step 4: Create SetupIntent
     const setupIntent = await stripe.setupIntents.create({
       customer: wallet.stripeCustomerId,
-      payment_method_types: ['ideal', 'bancontact', 'sofort'],
+      payment_method_types: paymentMethods,
     });
 
     return res.status(200).json({
       success: true,
       clientSecret: setupIntent.client_secret,
+      paymentMethods,
     });
   } catch (error) {
-    console.error("❌ Error creating setup intent:", error);
+    console.error('❌ Error creating setup intent:', error);
     next(error);
   }
 };
@@ -270,8 +290,7 @@ export const removeCard = async (req, res, next) => {
 
 export const addFundsToWallet = async (req, res, next) => {
   try {
-    const { userId, amount, billingInfo, credits, currencySymbol,  usePrimaryCard } = req.body;
-
+  const { userId, amount, billingInfo, credits, currencySymbol, usePrimaryCard, stripeCard } = req.body;
 
     if (!userId || !amount) {
       return next(new ErrorHandler("User ID and amount are required", 400));
@@ -349,12 +368,21 @@ const stripeCurrency = countryToCurrencyMap[rawCountry] || "eur";
 
    let stripePaymentDetails = null;
 
-if (usePrimaryCard) {
+let selectedCard = null;
+
+if (stripeCard === true) {
+  // Use most recently added card
+  selectedCard = wallet.cards.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))[0];
+} else if (usePrimaryCard) {
+  selectedCard = wallet.cards.find(card => card.isPrimary);
+}
+
+if (selectedCard) {
   const paymentIntent = await stripe.paymentIntents.create({
     amount: Math.round(totalAmount * 100),
     currency: stripeCurrency,
     customer: wallet.stripeCustomerId,
-    payment_method: primaryCard.stripeCardId,
+    payment_method: selectedCard.stripeCardId,
     off_session: true,
     confirm: true,
     description,
@@ -383,10 +411,10 @@ if (usePrimaryCard) {
     payment_method: paymentIntent.payment_method,
     receipt_url: paymentIntent.charges?.data?.[0]?.receipt_url || null,
     created: paymentIntent.created,
-    method: primaryCard.brand,
+    method: selectedCard.brand,
   };
-
-} else {
+}
+ else {
   // User paid via another method (e.g., iDEAL, Bancontact, Alipay)
   // We assume payment is already handled via Stripe Elements setup
   stripePaymentDetails = {
