@@ -309,7 +309,7 @@ export const addFundsToWallet = async (req, res, next) => {
     const primaryCard = wallet.cards.find(card => card.isPrimary);
     
     // 🧾 Validate billing fields
-    const requiredFields = ["name", "street", "postalCode", "city", "country"];
+    const requiredFields = ["name", "street", "postalCode", "country"];
     for (const field of requiredFields) {
       if (!billingInfo?.[field]) {
         return next(new ErrorHandler(`Billing field "${field}" is required.`, 400));
@@ -334,16 +334,14 @@ const stripeCurrency = countryToCurrencyMap[rawCountry] || "eur";
     console.log("🇪🇺 Is EU country:", isEU);
     console.log("🧾 VAT Number Provided:", vatNumber);
 
-    if (countryCode === "NL") {
-      vatRate = 0.21;
-    } else if (isEU) {
+       if (isEU) {
       if (vatNumber) {
-        const isValid = await validateVATNumber(vatNumber, countryCode);
-        console.log("✅ VAT Number Valid:", isValid);
-        if (isValid) {
+        const isValidVat = await validateVATNumber(vatNumber, countryCode);
+        console.log("✅ VAT Number Valid:", isValidVat);
+        if (isValidVat) {
+          vatRate = 0;
           isReverseCharge = true;
           vatNote = "VAT reverse charged pursuant to Article 138 of Directive 2006/112/EC";
-          vatRate = 0;
         } else {
           vatRate = 0.21;
         }
@@ -352,7 +350,9 @@ const stripeCurrency = countryToCurrencyMap[rawCountry] || "eur";
       }
     } else {
       vatRate = 0;
+      vatNote = "VAT-exempt export of services outside the EU – Article 6(2) Dutch VAT Act";
     }
+
 
     // 💶 Calculate totals
     vatAmount = amount * vatRate;
@@ -429,9 +429,11 @@ if (selectedCard) {
   };
 }
 
- 
-    // 💰 Update wallet
-    wallet.balance += amount; // only add the original amount to wallet
+const totalCreditsToAdd = credits.reduce((sum, credit) => {
+  return sum + Number(credit.credits);
+}, 0); 
+
+wallet.balance = Number(wallet.balance) + totalCreditsToAdd;
     await wallet.save();
 
     // 🧾 Create invoice
@@ -484,9 +486,8 @@ if (selectedCard) {
   }
 };
 
-
 export const getVat = async (req, res, next) => {
- try {
+  try {
     const { vatNumber, country } = req.body;
 
     if (!country) {
@@ -498,14 +499,11 @@ export const getVat = async (req, res, next) => {
     const normalizedVat = vatNumber?.toUpperCase() || null;
 
     let vatRate = 0;
-    let vatAmount = 0;
     let isReverseCharge = false;
     let vatNote = '';
     let isValidVat = false;
 
-    if (countryCode === 'NL') {
-      vatRate = 0.21;
-    } else if (isEU) {
+    if (isEU) {
       if (normalizedVat) {
         isValidVat = await validateVATNumber(normalizedVat, countryCode);
         if (isValidVat) {
@@ -513,13 +511,17 @@ export const getVat = async (req, res, next) => {
           isReverseCharge = true;
           vatNote = 'VAT reverse charged pursuant to Article 138 of Directive 2006/112/EC';
         } else {
-          vatRate = 0.21;
+          // Invalid VAT – treat as consumer
+          vatRate = countryCode === 'NL' ? 0.21 : 0.21; // You can later replace 0.21 with dynamic per-country rate
         }
       } else {
-        vatRate = 0.21;
+        // No VAT number – treat as consumer
+        vatRate = countryCode === 'NL' ? 0.21 : 0.21;
       }
     } else {
-      vatRate = 0; // Outside EU
+      // Outside EU – no VAT
+      vatRate = 0;
+      vatNote = 'VAT-exempt export of services outside the EU – Article 6(2) Dutch VAT Act';
     }
 
     return res.status(200).json({
@@ -534,7 +536,8 @@ export const getVat = async (req, res, next) => {
     console.error('❌ VAT Check Error:', error);
     return res.status(500).json({ success: false, message: 'Failed to validate VAT number.' });
   }
-}
+};
+
 
 export const getWalletByUserId = async (req, res, next) => {
   try {
