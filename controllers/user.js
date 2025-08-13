@@ -756,10 +756,27 @@ export const updateProfile = async (req, res, next) => {
 
 export const handleContactForm = async (req, res, next) => {
   try {
-    const { name, email, subject, message } = req.body;
+    const { name, email, subject, message, captcha } = req.body;
 
-    if (!name || !email || !subject || !message) {
-      return res.status(400).json({ success: false, message: "All fields are required." });
+    // ✅ Validate required fields
+    if (!name || !email || !subject || !message || !captcha) {
+      return res.status(400).json({ success: false, message: "All fields and CAPTCHA are required." });
+    }
+
+    // ✅ Verify reCAPTCHA with Google
+    const captchaVerifyUrl = `https://www.google.com/recaptcha/api/siteverify`;
+    const captchaRes = await fetch(captchaVerifyUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        secret: process.env.RECAPTCHA_SECRET_KEY, // from Google reCAPTCHA admin console
+        response: captcha,
+      }),
+    });
+    const captchaData = await captchaRes.json();
+
+    if (!captchaData.success || captchaData.score < 0.5) { // score check applies only for v3
+      return res.status(400).json({ success: false, message: "CAPTCHA verification failed." });
     }
 
     // ✅ Notify Admin
