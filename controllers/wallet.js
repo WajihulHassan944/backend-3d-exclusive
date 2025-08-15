@@ -84,15 +84,14 @@ export const createSetupIntent = async (req, res, next) => {
   }
 };
 
-
 export const createPaymentIntentAllMethods = async (req, res, next) => {
   try {
-    // ✅ Step 1: Detect country directly
+    // ✅ Step 1: Detect country
     const geoRes = await fetch(`https://ipwho.is/`);
     const geoData = await geoRes.json();
     const userCountry = geoData?.country_code || 'US';
-
     console.log(`🌍 Detected Country: ${userCountry}`);
+    console.log("💰 Amount received (original):", req.body.amount);
 
     // ✅ Step 2: Map country → currency
     const currencyMap = {
@@ -101,13 +100,12 @@ export const createPaymentIntentAllMethods = async (req, res, next) => {
       BE: 'eur',
       FR: 'eur',
       CN: 'cny',
-      PK: 'pkr',
+      PK: 'pkr', // handled below
       US: 'usd',
       GB: 'gbp',
     };
 
     let currency = currencyMap[userCountry] || 'eur';
-    console.log(`💱 Selected Currency: ${currency}`);
 
     // ✅ Step 3: Map country → payment methods
     const paymentMethodsMap = {
@@ -116,15 +114,26 @@ export const createPaymentIntentAllMethods = async (req, res, next) => {
       BE: ['bancontact', 'card'],
       FR: ['card'],
       CN: ['card'],
-      PK: ['ideal', 'card'], // We'll filter later
+      PK: ['card'], // Stripe PKR fallback handled below
       US: ['card'],
       GB: ['card'],
     };
 
-    let paymentMethods =
-      paymentMethodsMap[userCountry] || ['card', 'ideal'];
+    let paymentMethods = paymentMethodsMap[userCountry] || ['card'];
 
-    // ✅ Step 4: Remove methods not supported by the currency
+    // ✅ Step 4: Handle PKR → USD fallback for Stripe
+    if (currency === 'pkr') {
+      currency = 'usd'; // Stripe doesn't support PKR
+      const exchangeRate = 300; // example: 300 PKR = 1 USD
+      req.body.amount = Math.round(req.body.amount / exchangeRate);
+      console.log(`💱 PKR converted to USD: ${req.body.amount} USD`);
+    }
+
+    // ✅ Step 5: Convert to smallest unit for Stripe
+    req.body.amount = req.body.amount * 100; // e.g., $20 → 2000 cents
+    console.log(`📏 Amount in smallest unit: ${req.body.amount} ${currency}`);
+
+    // ✅ Step 6: Remove methods not supported by the currency
     if (currency !== 'eur') {
       paymentMethods = paymentMethods.filter(
         (m) => !['ideal', 'sofort', 'bancontact'].includes(m)
@@ -133,7 +142,7 @@ export const createPaymentIntentAllMethods = async (req, res, next) => {
 
     console.log(`💳 Final Payment Methods: ${paymentMethods.join(', ')}`);
 
-    // ✅ Step 5: Create PaymentIntent
+    // ✅ Step 7: Create PaymentIntent
     const paymentIntent = await stripe.paymentIntents.create({
       amount: req.body.amount,
       currency,
@@ -150,6 +159,7 @@ export const createPaymentIntentAllMethods = async (req, res, next) => {
       country: userCountry,
       currency,
     });
+
   } catch (error) {
     console.error('❌ Error creating payment intent:', error);
     next(error);
