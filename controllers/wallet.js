@@ -83,66 +83,87 @@ export const createSetupIntent = async (req, res, next) => {
     next(error);
   }
 };
-export const createSetupIntentAllMethods = async (req, res, next) => {
+
+
+export const createPaymentIntentAllMethods = async (req, res, next) => {
   try {
-    const userAuth = req.user;
-    const userId = userAuth._id;
-    const user = await User.findById(userId);
-    if (!user) return next(new ErrorHandler("User not found", 404));
-
-    let wallet = await Wallet.findOne({ userId });
-    if (!wallet) return next(new ErrorHandler("Wallet not found", 404));
-
-    // ✅ Step 1: Create Stripe customer if not exists
-    if (!wallet.stripeCustomerId) {
-      const customer = await stripe.customers.create({
-        email: user.email,
-        name: `${user.firstName} ${user.lastName}`,
-      });
-
-      wallet.stripeCustomerId = customer.id;
-      await wallet.save();
-    }
-
-    // ✅ Step 2: Get country via IP
+    // ✅ Step 1: Detect country via IP
     const ip =
       req.headers['x-forwarded-for']?.split(',')[0] ||
       req.connection.remoteAddress ||
-      'me'; // 'me' lets ipwho.is auto-detect server/client IP
+      'me'; // 'me' lets ipwho.is auto-detect
+
+    console.log(`📡 Detected IP: ${ip}`);
 
     const geoRes = await fetch(`https://ipwho.is/${ip}`);
     const geoData = await geoRes.json();
-    const userCountry = geoData?.country_code; // fallback to US if error
+    const userCountry = geoData?.country_code || 'US';
 
-    // ✅ Step 3: Map country to payment methods
+    console.log(`🌍 Detected Country: ${userCountry}`);
+
+    // ✅ Step 2: Map country → currency
+    const currencyMap = {
+      NL: 'eur',
+      DE: 'eur',
+      BE: 'eur',
+      FR: 'eur',
+      CN: 'cny',
+      PK: 'pkr',
+      US: 'usd',
+      GB: 'gbp',
+    };
+
+    let currency = currencyMap[userCountry] || 'eur';
+    console.log(`💱 Selected Currency: ${currency}`);
+
+    // ✅ Step 3: Map country → payment methods
     const paymentMethodsMap = {
       NL: ['ideal', 'card'],
       DE: ['sofort', 'card'],
       BE: ['bancontact', 'card'],
       FR: ['card'],
-      CN: ['alipay', 'card'],
-      PK: ['card'],
-      // Extend as needed...
+      CN: ['card'],
+      PK: ['ideal', 'card'], // We'll filter later
+      US: ['card'],
+      GB: ['card'],
     };
 
-    const paymentMethods = paymentMethodsMap[userCountry] || ['card'];
+    let paymentMethods =
+      paymentMethodsMap[userCountry] || ['card', 'ideal'];
 
-    // ✅ Step 4: Create SetupIntent
-    const setupIntent = await stripe.setupIntents.create({
-      customer: wallet.stripeCustomerId,
+    // ✅ Step 4: Remove methods that don't support selected currency
+    // For example: iDEAL supports only EUR, so remove if currency !== eur
+    if (currency !== 'eur') {
+      paymentMethods = paymentMethods.filter(
+        (m) => !['ideal', 'sofort', 'bancontact'].includes(m)
+      );
+    }
+
+    console.log(`💳 Final Payment Methods: ${paymentMethods.join(', ')}`);
+
+    // ✅ Step 5: Create PaymentIntent
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: req.body.amount, // Already in smallest currency unit
+      currency,
       payment_method_types: paymentMethods,
+      automatic_payment_methods: { enabled: false },
     });
+
+    console.log(`✅ PaymentIntent Created: ${paymentIntent.id}`);
 
     return res.status(200).json({
       success: true,
-      clientSecret: setupIntent.client_secret,
+      clientSecret: paymentIntent.client_secret,
       paymentMethods,
+      country: userCountry,
+      currency,
     });
   } catch (error) {
-    console.error('❌ Error creating setup intent:', error);
+    console.error('❌ Error creating payment intent:', error);
     next(error);
   }
 };
+
 
 // POST /api/wallet/add-billing-method
 export const addBillingMethod = async (req, res, next) => {
@@ -290,7 +311,7 @@ export const removeCard = async (req, res, next) => {
 
 export const addFundsToWallet = async (req, res, next) => {
   try {
-  const { userId, amount, billingInfo, credits, currencySymbol, usePrimaryCard, stripeCard } = req.body;
+  const { userId, amount, billingInfo, credits, currencySymbol, usePrimaryCard, stripeCard , localPaymentMethod} = req.body;
 
     if (!userId || !amount) {
       return next(new ErrorHandler("User ID and amount are required", 400));
@@ -425,7 +446,7 @@ if (selectedCard) {
     payment_method: "element",
     receipt_url: null,
     created: Date.now(),
-    method: "Stripe Element",
+   method: localPaymentMethod || "Stripe Element",
   };
 }
 
