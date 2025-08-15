@@ -87,15 +87,8 @@ export const createSetupIntent = async (req, res, next) => {
 
 export const createPaymentIntentAllMethods = async (req, res, next) => {
   try {
-    // ✅ Step 1: Detect country via IP
-    const ip =
-      req.headers['x-forwarded-for']?.split(',')[0] ||
-      req.connection.remoteAddress ||
-      'me'; // 'me' lets ipwho.is auto-detect
-
-    console.log(`📡 Detected IP: ${ip}`);
-
-    const geoRes = await fetch(`https://ipwho.is/${ip}`);
+    // ✅ Step 1: Detect country directly
+    const geoRes = await fetch(`https://ipwho.is/`);
     const geoData = await geoRes.json();
     const userCountry = geoData?.country_code || 'US';
 
@@ -131,8 +124,7 @@ export const createPaymentIntentAllMethods = async (req, res, next) => {
     let paymentMethods =
       paymentMethodsMap[userCountry] || ['card', 'ideal'];
 
-    // ✅ Step 4: Remove methods that don't support selected currency
-    // For example: iDEAL supports only EUR, so remove if currency !== eur
+    // ✅ Step 4: Remove methods not supported by the currency
     if (currency !== 'eur') {
       paymentMethods = paymentMethods.filter(
         (m) => !['ideal', 'sofort', 'bancontact'].includes(m)
@@ -143,7 +135,7 @@ export const createPaymentIntentAllMethods = async (req, res, next) => {
 
     // ✅ Step 5: Create PaymentIntent
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: req.body.amount, // Already in smallest currency unit
+      amount: req.body.amount,
       currency,
       payment_method_types: paymentMethods,
       automatic_payment_methods: { enabled: false },
