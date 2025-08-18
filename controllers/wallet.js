@@ -133,12 +133,12 @@ export const createPaymentIntentAllMethods = async (req, res, next) => {
     req.body.amount = req.body.amount * 100; // e.g., $20 → 2000 cents
     console.log(`📏 Amount in smallest unit: ${req.body.amount} ${currency}`);
 
-    // ✅ Step 6: Remove methods not supported by the currency
-    if (currency !== 'eur') {
-      paymentMethods = paymentMethods.filter(
-        (m) => !['ideal', 'sofort', 'bancontact'].includes(m)
-      );
-    }
+    // // ✅ Step 6: Remove methods not supported by the currency
+    // if (currency !== 'eur') {
+    //   paymentMethods = paymentMethods.filter(
+    //     (m) => !['ideal', 'sofort', 'bancontact'].includes(m)
+    //   );
+    // }
 
     console.log(`💳 Final Payment Methods: ${paymentMethods.join(', ')}`);
 
