@@ -86,13 +86,12 @@ export const createSetupIntent = async (req, res, next) => {
 
 export const createPaymentIntentAllMethods = async (req, res, next) => {
   try {
-    // ✅ Step 1: Detect country
-    const geoRes = await fetch(`https://ipwho.is/`);
-    const geoData = await geoRes.json();
-    const userCountry = geoData?.country_code;
-    console.log(`🌍 Detected Country: ${userCountry}`);
+    // ✅ Step 1: Get country from frontend
+    const userCountry = req.body.country || 'US';
+    console.log(`🌍 Received Country from Frontend: ${userCountry}`);
 
-    console.log("💰 Amount received (original):", req.body.amount);
+    let amount = req.body.amount;
+    console.log("💰 Amount received (original):", amount);
 
     // ✅ Step 2: Map country → currency
     const currencyMap = {
@@ -101,7 +100,7 @@ export const createPaymentIntentAllMethods = async (req, res, next) => {
       BE: 'eur',
       FR: 'eur',
       CN: 'cny',
-      PK: 'pkr', // handled below
+      PK: 'pkr', // fallback handled below
       US: 'usd',
       GB: 'gbp',
     };
@@ -110,31 +109,31 @@ export const createPaymentIntentAllMethods = async (req, res, next) => {
 
     // ✅ Step 3: Map country → payment methods
     const paymentMethodsMap = {
-      NL: ['card', 'ideal','bancontact'],
+      NL: ['card', 'ideal', 'bancontact'],
       DE: ['sofort', 'card'],
       BE: ['bancontact', 'card'],
       FR: ['card'],
       CN: ['card'],
-      PK: ['card', 'ideal','bancontact'], // Stripe PKR fallback handled below
+      PK: ['card', 'ideal', 'bancontact'], // fallback handled below
       US: ['card'],
       GB: ['card'],
     };
 
-    let paymentMethods = paymentMethodsMap[userCountry] || ['card', 'ideal','bancontact'];
+    let paymentMethods = paymentMethodsMap[userCountry] || ['card'];
 
-    // ✅ Step 4: Handle PKR → USD fallback for Stripe
+    // ✅ Step 4: Handle PKR → EUR fallback for Stripe
     if (currency === 'pkr') {
-      currency = 'usd'; // Stripe doesn't support PKR
-      const exchangeRate = 300; // example: 300 PKR = 1 USD
-      req.body.amount = Math.round(req.body.amount / exchangeRate);
-      console.log(`💱 PKR converted to USD: ${req.body.amount} USD`);
+      currency = 'eur'; // Stripe doesn't support PKR, use EUR
+      const exchangeRate = 300; // example: 300 PKR = 1 EUR
+      amount = Math.round(amount / exchangeRate);
+      console.log(`💱 PKR converted to EUR: ${amount} EUR`);
     }
 
     // ✅ Step 5: Convert to smallest unit for Stripe
-    req.body.amount = req.body.amount * 100; // e.g., $20 → 2000 cents
-    console.log(`📏 Amount in smallest unit: ${req.body.amount} ${currency}`);
+    amount = amount * 100; // e.g., €20 → 2000 cents
+    console.log(`📏 Amount in smallest unit: ${amount} ${currency}`);
 
-    // // ✅ Step 6: Remove methods not supported by the currency
+    // ✅ Step 6: Remove unsupported methods for non-EUR
     if (currency !== 'eur') {
       paymentMethods = paymentMethods.filter(
         (m) => !['ideal', 'sofort', 'bancontact'].includes(m)
@@ -145,7 +144,7 @@ export const createPaymentIntentAllMethods = async (req, res, next) => {
 
     // ✅ Step 7: Create PaymentIntent
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: req.body.amount,
+      amount,
       currency,
       payment_method_types: paymentMethods,
       automatic_payment_methods: { enabled: false },
