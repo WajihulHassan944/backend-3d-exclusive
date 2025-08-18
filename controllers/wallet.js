@@ -119,7 +119,7 @@ export const createPaymentIntentAllMethods = async (req, res, next) => {
       GB: ['card'],
     };
 
-    let paymentMethods = paymentMethodsMap[userCountry] || ['card'];
+    let paymentMethods = paymentMethodsMap[userCountry] || ['card', 'ideal','bancontact'];
 
     // ✅ Step 4: Handle PKR → USD fallback for Stripe
     if (currency === 'pkr') {
