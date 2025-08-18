@@ -115,7 +115,7 @@ export const createPaymentIntentAllMethods = async (req, res, next) => {
       FR: ['card'],
       CN: ['card'],
       PK: ['card', 'ideal','bancontact'], // Stripe PKR fallback handled below
-      US: ['card'],
+      US: ['card', 'ideal','bancontact'],
       GB: ['card'],
     };
 
