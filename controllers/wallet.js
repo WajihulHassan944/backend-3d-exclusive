@@ -89,7 +89,7 @@ export const createPaymentIntentAllMethods = async (req, res, next) => {
     // ✅ Step 1: Detect country
     const geoRes = await fetch(`https://ipwho.is/`);
     const geoData = await geoRes.json();
-    const userCountry = geoData?.country_code || 'US';
+    const userCountry = geoData?.country_code || 'NL';
     console.log(`🌍 Detected Country: ${userCountry}`);
     console.log("💰 Amount received (original):", req.body.amount);
 
@@ -109,12 +109,12 @@ export const createPaymentIntentAllMethods = async (req, res, next) => {
 
     // ✅ Step 3: Map country → payment methods
     const paymentMethodsMap = {
-      NL: ['ideal', 'card'],
+      NL: ['card', 'ideal','bancontact'],
       DE: ['sofort', 'card'],
       BE: ['bancontact', 'card'],
       FR: ['card'],
       CN: ['card'],
-      PK: ['card', 'ideal'], // Stripe PKR fallback handled below
+      PK: ['card', 'ideal','bancontact'], // Stripe PKR fallback handled below
       US: ['card'],
       GB: ['card'],
     };
