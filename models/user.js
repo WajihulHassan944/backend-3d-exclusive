@@ -27,6 +27,7 @@ const schema = new mongoose.Schema({
   type: Boolean,
   default: true, // one-time gift on registration
 },
+appleId: { type: String, unique: true, sparse: true },
 newsletterOptIn: {
   type: Boolean,
   default: false,

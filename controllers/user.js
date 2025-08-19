@@ -76,12 +76,12 @@ export const fetchAppleProfile = async (idToken, code) => {
 };
 
 
-export const appleRegister = async (req, res, next) => {
+export const appleAuth = async (req, res, next) => {
   const { idToken, code, country } = req.body;
 
   try {
     const profile = await fetchAppleProfile(idToken, code);
-    const { email } = profile;
+    const { email, sub } = profile;
 
     if (!email) {
       return next(new ErrorHandler("Apple did not return an email", 400));
@@ -90,21 +90,39 @@ export const appleRegister = async (req, res, next) => {
     let user = await User.findOne({ email });
 
     if (user) {
-      return next(new ErrorHandler("User already exists. Please login.", 400));
+      // ✅ Existing user → treat as login
+      if (!user.verified) {
+        return next(new ErrorHandler("Account is not verified.", 403));
+      }
+
+      return sendCookie(user, res, `Welcome back, ${user.firstName}`, 200, {
+        user: {
+          _id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          profileUrl: user.profileUrl,
+          email: user.email,
+          country: user.country,
+          verified: user.verified,
+          createdAt: user.createdAt,
+        },
+      });
     }
 
+    // 🆕 New user → treat as register
     user = await User.create({
-      firstName: "Apple", // Apple sometimes only returns email, no name
+      firstName: "Apple", // Apple often only returns email
       lastName: "User",
       email,
-      country: country || 'Unknown',
+      appleId: sub,
+      country: country || "Unknown",
       verified: true,
       isNotificationsEnabled: true,
       isSubscribed: true,
       isAgreed: true,
     });
 
-    // Stripe wallet
+    // Create Stripe wallet
     const stripeCustomer = await stripe.customers.create({
       email: user.email,
       name: `${user.firstName} ${user.lastName}`.trim(),
@@ -121,7 +139,7 @@ export const appleRegister = async (req, res, next) => {
     // Send welcome email
     const welcomeHtml = generateEmailTemplate({
       firstName: user.firstName,
-      subject: 'Welcome to Xclusive 3D!',
+      subject: "Welcome to Xclusive 3D!",
       content: `<p>Hi ${user.firstName}, you signed up with Apple ID 🎉</p>`,
     });
 
@@ -140,15 +158,23 @@ export const appleRegister = async (req, res, next) => {
       html: `<p>New user signed up with Apple: ${user.email}</p>`,
     });
 
-    sendCookie(user, res, `Welcome ${user.firstName}`, 201);
-
+    return sendCookie(user, res, `Welcome ${user.firstName}`, 201, {
+      user: {
+        _id: user._id,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        profileUrl: user.profileUrl,
+        email: user.email,
+        country: user.country,
+        verified: user.verified,
+        createdAt: user.createdAt,
+      },
+    });
   } catch (error) {
-    console.error("Apple Register Error:", error);
-    next(new ErrorHandler("Apple Registration Failed", 500));
+    console.error("Apple Auth Error:", error);
+    next(new ErrorHandler("Apple Authentication Failed", 500));
   }
 };
-
-
 
 export const googleRegister = async (req, res, next) => {
   const { token, country } = req.body;

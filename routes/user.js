@@ -1,5 +1,5 @@
 import express from "express";
-import { appleRegister, deleteUserById, getAllUsers, getMyProfile, getUserById, googleLogin, googleRegister, handleContactForm, login, logout, register,  resetPasswordConfirm, resetPasswordRequest,  resetPasswordRequestEmail,  subscribeNewsletter,  toggleNewsletter,  unsubscribeNewsletter,  updateProfile, verifyEmail } from "../controllers/user.js";
+import { appleAuth,  deleteUserById, getAllUsers, getMyProfile, getUserById, googleLogin, googleRegister, handleContactForm, login, logout, register,  resetPasswordConfirm, resetPasswordRequest,  resetPasswordRequestEmail,  subscribeNewsletter,  toggleNewsletter,  unsubscribeNewsletter,  updateProfile, verifyEmail } from "../controllers/user.js";
 import { isAuthenticated } from "../middlewares/auth.js";
 import upload from "../middlewares/upload.js";
 
@@ -8,7 +8,7 @@ const router = express.Router();
 router.post('/register', upload.single('profileImage'), register);
 router.post("/google-login", googleLogin);
 router.post("/google-register", googleRegister);
-router.post("/callback/apple", appleRegister);
+router.post("/callback/apple", appleAuth);
 router.post("/login", login);
 router.get("/logout", logout);
 router.get("/userdetails", isAuthenticated, getMyProfile);
