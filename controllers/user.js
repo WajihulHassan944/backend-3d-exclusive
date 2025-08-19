@@ -13,13 +13,10 @@ import { Wallet } from "../models/wallet.js";
 import stripe from "../utils/stripe.js";
 import { Video } from '../models/b2Upload.js';
 import { Cart } from "../models/cart.js";
-
 import validator from 'validator'; // For email format checking
-
-
-
 import { S3Client, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { Invoice } from "../models/invoice.js";
+import appleSignin from "apple-signin-auth";
 
 const r2Client = new S3Client({
   endpoint: process.env.R2_ENDPOINT,
@@ -45,6 +42,113 @@ const fetchGoogleProfile = async (accessToken) => {
 
   return await res.json();
 };
+
+
+export const fetchAppleProfile = async (idToken, code) => {
+  const clientID = process.env.APPLE_CLIENT_ID;
+
+  // 1️⃣ Verify identity token (JWT)
+  const decoded = await appleSignin.verifyIdToken(idToken, {
+    audience: clientID,
+    ignoreExpiration: false
+  });
+
+  // 2️⃣ Exchange auth code for refresh/access token (optional if you only need email)
+  let tokens = null;
+  if (code) {
+    tokens = await appleSignin.getAuthorizationToken(code, {
+      clientID,
+      clientSecret: appleSignin.getClientSecret({
+        clientID,
+        teamID: process.env.APPLE_TEAM_ID,
+        privateKey: process.env.APPLE_PRIVATE_KEY,
+        keyIdentifier: process.env.APPLE_KEY_ID,
+      }),
+    });
+  }
+
+  return {
+    email: decoded.email,
+    email_verified: decoded.email_verified,
+    sub: decoded.sub, // Apple's unique user ID
+    tokens,
+  };
+};
+
+
+export const appleRegister = async (req, res, next) => {
+  const { idToken, code, country } = req.body;
+
+  try {
+    const profile = await fetchAppleProfile(idToken, code);
+    const { email } = profile;
+
+    if (!email) {
+      return next(new ErrorHandler("Apple did not return an email", 400));
+    }
+
+    let user = await User.findOne({ email });
+
+    if (user) {
+      return next(new ErrorHandler("User already exists. Please login.", 400));
+    }
+
+    user = await User.create({
+      firstName: "Apple", // Apple sometimes only returns email, no name
+      lastName: "User",
+      email,
+      country: country || 'Unknown',
+      verified: true,
+      isNotificationsEnabled: true,
+      isSubscribed: true,
+      isAgreed: true,
+    });
+
+    // Stripe wallet
+    const stripeCustomer = await stripe.customers.create({
+      email: user.email,
+      name: `${user.firstName} ${user.lastName}`.trim(),
+    });
+
+    await Wallet.create({
+      userId: user._id,
+      stripeCustomerId: stripeCustomer.id,
+      balance: 0,
+      cards: [],
+      transactions: [],
+    });
+
+    // Send welcome email
+    const welcomeHtml = generateEmailTemplate({
+      firstName: user.firstName,
+      subject: 'Welcome to Xclusive 3D!',
+      content: `<p>Hi ${user.firstName}, you signed up with Apple ID 🎉</p>`,
+    });
+
+    await transporter.sendMail({
+      from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+      to: user.email,
+      subject: "Welcome to Xclusive 3D – Sign in with Apple",
+      html: welcomeHtml,
+    });
+
+    // Notify Admin
+    await transporter.sendMail({
+      from: `"Xclusive 3D Notifications" <${process.env.ADMIN_EMAIL}>`,
+      to: process.env.ADMIN_EMAIL,
+      subject: "🚀 New Apple Signup – Xclusive 3D",
+      html: `<p>New user signed up with Apple: ${user.email}</p>`,
+    });
+
+    sendCookie(user, res, `Welcome ${user.firstName}`, 201);
+
+  } catch (error) {
+    console.error("Apple Register Error:", error);
+    next(new ErrorHandler("Apple Registration Failed", 500));
+  }
+};
+
+
 
 export const googleRegister = async (req, res, next) => {
   const { token, country } = req.body;

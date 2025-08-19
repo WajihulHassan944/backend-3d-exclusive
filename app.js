@@ -26,6 +26,7 @@ app.use(
 );
 // Using routes
 app.use("/api/users", userRouter);
+app.use("/api/auth", userRouter);
 app.use("/api/wallet", walletRouter);
 app.use('/api/b2', uploadRouter);
 app.use('/api/cart', cartRouter);
