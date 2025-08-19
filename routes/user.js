@@ -8,7 +8,7 @@ const router = express.Router();
 router.post('/register', upload.single('profileImage'), register);
 router.post("/google-login", googleLogin);
 router.post("/google-register", googleRegister);
-router.post("/apple/callback", appleRegister);
+router.post("/callback/apple", appleRegister);
 router.post("/login", login);
 router.get("/logout", logout);
 router.get("/userdetails", isAuthenticated, getMyProfile);
