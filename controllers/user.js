@@ -85,11 +85,10 @@ export const fetchAppleProfile = async (idToken, code) => {
   };
 };
 
-
 // controllers/authController.js
 export const appleAuth = async (req, res, next) => {
-  const { code, id_token } = req.body; // Apple posts this
-  const country = req.query.country || "Netherlands"; // optional
+  const { code, id_token } = req.body || req.query; // Apple sometimes posts via form
+  const country = req.query.country || "Netherlands";
 
   try {
     const profile = await fetchAppleProfile(id_token, code);
@@ -101,23 +100,20 @@ export const appleAuth = async (req, res, next) => {
 
     if (user) {
       if (!user.verified) {
-        return next(new ErrorHandler("Account is not verified.", 403));
+        return res.redirect(
+          `https://frontend-3d-exclusive.vercel.app/login?error=AccountNotVerified`
+        );
       }
 
-      return sendCookie(user, res, `Welcome back, ${user.firstName}`, 200, {
-        success: true,
-        user: {
-          _id: user._id,
-          firstName: user.firstName,
-          lastName: user.lastName,
-          email: user.email,
-          country: user.country,
-          verified: user.verified,
-        },
-      });
+      // Set cookie before redirect
+      sendCookie(user, res, `Welcome back, ${user.firstName}`, 200);
+
+      return res.redirect(
+        `https://frontend-3d-exclusive.vercel.app/upload?login=success`
+      );
     }
 
-    // 🆕 Register new user
+    // 🆕 New user
     user = await User.create({
       firstName: "Apple",
       lastName: "User",
@@ -143,7 +139,6 @@ export const appleAuth = async (req, res, next) => {
       transactions: [],
     });
 
-    // Send emails...
     await transporter.sendMail({
       from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
       to: user.email,
@@ -151,23 +146,19 @@ export const appleAuth = async (req, res, next) => {
       html: `<p>Hi ${user.firstName}, you signed up with Apple ID 🎉</p>`,
     });
 
-    return sendCookie(user, res, `Welcome ${user.firstName}`, 201, {
-      success: true,
-      user: {
-        _id: user._id,
-        firstName: user.firstName,
-        lastName: user.lastName,
-        email: user.email,
-        country: user.country,
-        verified: user.verified,
-      },
-    });
+    // Set cookie before redirect
+    sendCookie(user, res, `Welcome ${user.firstName}`, 201);
+
+    return res.redirect(
+      `https://frontend-3d-exclusive.vercel.app/upload?signup=success`
+    );
   } catch (error) {
     console.error("Apple Auth Error:", error);
-    next(new ErrorHandler("Apple Authentication Failed", 500));
+    return res.redirect(
+      `https://frontend-3d-exclusive.vercel.app/login?error=AppleAuthFailed`
+    );
   }
 };
-
 export const googleRegister = async (req, res, next) => {
   const { token, country } = req.body;
 
