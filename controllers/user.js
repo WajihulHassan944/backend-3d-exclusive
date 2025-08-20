@@ -83,11 +83,7 @@ console.log("Req body is", req.body);
     const profile = await fetchAppleProfile(idToken, code);
     const { email, sub } = profile;
 
-    if (!email) {
-      return next(new ErrorHandler("Apple did not return an email", 400));
-    }
-
-    let user = await User.findOne({ email });
+ let user = await User.findOne({ email }) || await User.findOne({ appleId: sub });
 
     if (user) {
       // ✅ Existing user → treat as login
