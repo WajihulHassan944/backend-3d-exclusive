@@ -77,7 +77,8 @@ export const fetchAppleProfile = async (idToken, code) => {
 
 
 export const appleAuth = async (req, res, next) => {
-  const { idToken, code, country } = req.body;
+  const { code, country } = req.body;
+  const idToken = req.body.id_token;
 console.log("Req body is", req.body);
   try {
     const profile = await fetchAppleProfile(idToken, code);
