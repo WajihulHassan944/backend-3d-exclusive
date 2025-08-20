@@ -47,13 +47,17 @@ const fetchGoogleProfile = async (accessToken) => {
 export const fetchAppleProfile = async (idToken, code) => {
   const clientID = process.env.APPLE_CLIENT_ID;
 
-  // 1️⃣ Verify identity token (JWT)
+  // Helper to ensure the private key is formatted correctly
+  const getApplePrivateKey = () =>
+    process.env.APPLE_PRIVATE_KEY.replace(/\\n/g, "\n");
+
+  // 1️⃣ Verify identity token (JWT from Apple)
   const decoded = await appleSignin.verifyIdToken(idToken, {
     audience: clientID,
-    ignoreExpiration: false
+    ignoreExpiration: false,
   });
 
-  // 2️⃣ Exchange auth code for refresh/access token (optional if you only need email)
+  // 2️⃣ Exchange auth code for access/refresh token (if code is present)
   let tokens = null;
   if (code) {
     tokens = await appleSignin.getAuthorizationToken(code, {
@@ -61,16 +65,17 @@ export const fetchAppleProfile = async (idToken, code) => {
       clientSecret: appleSignin.getClientSecret({
         clientID,
         teamID: process.env.APPLE_TEAM_ID,
-        privateKey: process.env.APPLE_PRIVATE_KEY,
+        privateKey: getApplePrivateKey(),
         keyIdentifier: process.env.APPLE_KEY_ID,
       }),
     });
   }
 
+  // 3️⃣ Return structured profile
   return {
     email: decoded.email,
     email_verified: decoded.email_verified,
-    sub: decoded.sub, // Apple's unique user ID
+    sub: decoded.sub, // Apple's unique user identifier
     tokens,
   };
 };
