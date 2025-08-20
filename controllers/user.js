@@ -127,6 +127,8 @@ export const appleAuth = async (req, res, next) => {
       isNotificationsEnabled: true,
       isSubscribed: true,
       isAgreed: true,
+      profileUrl: "https://res.cloudinary.com/daflot6fo/image/upload/v1752757070/one_ju3l12.png",
+
     });
 
     const stripeCustomer = await stripe.customers.create({
