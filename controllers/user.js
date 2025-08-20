@@ -106,11 +106,14 @@ export const appleAuth = async (req, res, next) => {
       }
 
       // Set cookie before redirect
-      sendCookie(user, res, `Welcome back, ${user.firstName}`, 200);
-
-      return res.redirect(
-        `https://frontend-3d-exclusive.vercel.app/upload?login=success`
-      );
+      return sendCookie(
+  user,
+  res,
+  `Welcome back, ${user.firstName}`,
+  200,
+  {},
+  "https://frontend-3d-exclusive.vercel.app/upload?login=success"
+);
     }
 
     // 🆕 New user
@@ -147,11 +150,14 @@ export const appleAuth = async (req, res, next) => {
     });
 
     // Set cookie before redirect
-    sendCookie(user, res, `Welcome ${user.firstName}`, 201);
-
-    return res.redirect(
-      `https://frontend-3d-exclusive.vercel.app/upload?signup=success`
-    );
+   return sendCookie(
+  user,
+  res,
+  `Welcome ${user.firstName}`,
+  201,
+  {},
+  "https://frontend-3d-exclusive.vercel.app/upload?signup=success"
+);
   } catch (error) {
     console.error("Apple Auth Error:", error);
     return res.redirect(
