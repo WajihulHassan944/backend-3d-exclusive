@@ -86,50 +86,50 @@ export const fetchAppleProfile = async (idToken, code) => {
 };
 
 
+// controllers/authController.js
 export const appleAuth = async (req, res, next) => {
-  const { code, country } = req.body;
-  const idToken = req.body.id_token;
-console.log("Req body is", req.body);
+  const { code, id_token } = req.body; // Apple posts this
+  const country = req.query.country || "Netherlands"; // optional
+
   try {
-    const profile = await fetchAppleProfile(idToken, code);
+    const profile = await fetchAppleProfile(id_token, code);
     const { email, sub } = profile;
 
- let user = await User.findOne({ email }) || await User.findOne({ appleId: sub });
+    let user =
+      (email && (await User.findOne({ email }))) ||
+      (await User.findOne({ appleId: sub }));
 
     if (user) {
-      // ✅ Existing user → treat as login
       if (!user.verified) {
         return next(new ErrorHandler("Account is not verified.", 403));
       }
 
       return sendCookie(user, res, `Welcome back, ${user.firstName}`, 200, {
+        success: true,
         user: {
           _id: user._id,
           firstName: user.firstName,
           lastName: user.lastName,
-          profileUrl: user.profileUrl,
           email: user.email,
           country: user.country,
           verified: user.verified,
-          createdAt: user.createdAt,
         },
       });
     }
 
-    // 🆕 New user → treat as register
+    // 🆕 Register new user
     user = await User.create({
-      firstName: "Apple", // Apple often only returns email
+      firstName: "Apple",
       lastName: "User",
       email,
       appleId: sub,
-      country: country || "Unknown",
+      country,
       verified: true,
       isNotificationsEnabled: true,
       isSubscribed: true,
       isAgreed: true,
     });
 
-    // Create Stripe wallet
     const stripeCustomer = await stripe.customers.create({
       email: user.email,
       name: `${user.firstName} ${user.lastName}`.trim(),
@@ -143,38 +143,23 @@ console.log("Req body is", req.body);
       transactions: [],
     });
 
-    // Send welcome email
-    const welcomeHtml = generateEmailTemplate({
-      firstName: user.firstName,
-      subject: "Welcome to Xclusive 3D!",
-      content: `<p>Hi ${user.firstName}, you signed up with Apple ID 🎉</p>`,
-    });
-
+    // Send emails...
     await transporter.sendMail({
       from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
       to: user.email,
       subject: "Welcome to Xclusive 3D – Sign in with Apple",
-      html: welcomeHtml,
-    });
-
-    // Notify Admin
-    await transporter.sendMail({
-      from: `"Xclusive 3D Notifications" <${process.env.ADMIN_EMAIL}>`,
-      to: process.env.ADMIN_EMAIL,
-      subject: "🚀 New Apple Signup – Xclusive 3D",
-      html: `<p>New user signed up with Apple: ${user.email}</p>`,
+      html: `<p>Hi ${user.firstName}, you signed up with Apple ID 🎉</p>`,
     });
 
     return sendCookie(user, res, `Welcome ${user.firstName}`, 201, {
+      success: true,
       user: {
         _id: user._id,
         firstName: user.firstName,
         lastName: user.lastName,
-        profileUrl: user.profileUrl,
         email: user.email,
         country: user.country,
         verified: user.verified,
-        createdAt: user.createdAt,
       },
     });
   } catch (error) {
