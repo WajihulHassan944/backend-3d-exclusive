@@ -86,27 +86,13 @@ export const createSetupIntent = async (req, res, next) => {
 
 export const createPaymentIntentAllMethods = async (req, res, next) => {
   try {
-    // ✅ Step 1: Get country from frontend
-    const userCountry = req.body.country || 'US';
-    console.log(`🌍 Received Country from Frontend: ${userCountry}`);
-
+   
     let amount = req.body.amount;
     console.log("💰 Amount received (original):", amount);
 
-    // ✅ Step 2: Map country → currency
-    const currencyMap = {
-      NL: 'eur',
-      DE: 'eur',
-      BE: 'eur',
-      FR: 'eur',
-      CN: 'cny',
-      PK: 'pkr', // fallback handled below
-      US: 'usd',
-      GB: 'gbp',
-    };
+   let currency = (req.body.currencyCode || 'eur').toLowerCase();
 
-    let currency = currencyMap[userCountry] || 'eur';
-
+console.log("currency is", currency);
     // ✅ Step 3: Map country → payment methods
     const paymentMethodsMap = {
       NL: ['card', 'ideal', 'bancontact'],
@@ -114,12 +100,12 @@ export const createPaymentIntentAllMethods = async (req, res, next) => {
       BE: ['bancontact', 'card'],
       FR: ['card'],
       CN: ['card'],
-      PK: ['card', 'ideal', 'bancontact'], // fallback handled below
+      PK: ['card', 'ideal'], // fallback handled below
       US: ['card'],
       GB: ['card'],
     };
 
-    let paymentMethods = paymentMethodsMap[userCountry] || ['card'];
+    let paymentMethods = paymentMethodsMap[req.body.userCountry] || ['card'];
 
     // ✅ Step 4: Handle PKR → EUR fallback for Stripe
     if (currency === 'pkr') {
@@ -156,7 +142,7 @@ export const createPaymentIntentAllMethods = async (req, res, next) => {
       success: true,
       clientSecret: paymentIntent.client_secret,
       paymentMethods,
-      country: userCountry,
+      country: req.body.userCountry,
       currency,
     });
 
