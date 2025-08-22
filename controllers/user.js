@@ -85,6 +85,7 @@ export const fetchAppleProfile = async (idToken, code) => {
     email_verified: decoded.email_verified ?? false,
     sub: decoded.sub,
     tokens, // null in popup flow
+    name: decoded.name || null,
   };
 };
 
@@ -95,7 +96,8 @@ export const appleAuth = async (req, res, next) => {
 
   try {
     const profile = await fetchAppleProfile(id_token, code);
-    const { email, sub } = profile;
+   const { email, sub, name } = profile;
+
 
     let user =
       (email && (await User.findOne({ email }))) ||
@@ -121,8 +123,8 @@ export const appleAuth = async (req, res, next) => {
 
     // 🆕 New user
     user = await User.create({
-      firstName: "Apple",
-      lastName: "User",
+       firstName: name?.firstName || "Apple",
+  lastName: name?.lastName || "User",
       email,
       appleId: sub,
       country,
