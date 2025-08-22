@@ -123,8 +123,8 @@ export const appleAuth = async (req, res, next) => {
 
     // 🆕 New user
     user = await User.create({
-       firstName: name?.firstName || "Apple",
-  lastName: name?.lastName || "User",
+       firstName: name?.firstName || "User",
+  lastName: name?.lastName || "",
       email,
       appleId: sub,
       country,
