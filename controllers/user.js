@@ -44,7 +44,6 @@ const fetchGoogleProfile = async (accessToken) => {
 };
 
 
-
 export const fetchAppleProfile = async (idToken, code) => {
   const clientID = process.env.APPLE_CLIENT_ID;
 
@@ -66,6 +65,8 @@ export const fetchAppleProfile = async (idToken, code) => {
     ignoreExpiration: false,
   });
 
+  console.log("🔍 Full Decoded Apple ID Token:", decoded);
+
   // 2️⃣ Exchange auth code only if provided (redirect flow)
   let tokens = null;
   if (code) {
@@ -74,9 +75,11 @@ export const fetchAppleProfile = async (idToken, code) => {
       clientSecret,
       redirectUri: process.env.APPLE_REDIRECT_URI,
     });
+
+    console.log("🔑 Full Apple Auth Tokens:", tokens);
   }
 
-  // 3️⃣ Return profile
+  // 3️⃣ Return profile (unchanged)
   return {
     email: decoded.email || null, // Apple may not resend after first login
     email_verified: decoded.email_verified ?? false,
