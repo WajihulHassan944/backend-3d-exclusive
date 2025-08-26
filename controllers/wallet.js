@@ -86,54 +86,22 @@ export const createSetupIntent = async (req, res, next) => {
 
 export const createPaymentIntentAllMethods = async (req, res, next) => {
   try {
-   
-    let amount = req.body.amount;
+    let amount = req.body.amount;              // e.g., 200
+    let currency = (req.body.currencyCode || 'eur').toLowerCase(); // e.g., "pkr"
+
     console.log("💰 Amount received (original):", amount);
+    console.log("user country Code is", req.body.countryCode);
+    console.log("currency is", currency);
 
-   let currency = (req.body.currencyCode || 'eur').toLowerCase();
-
-console.log("currency is", currency);
-    // ✅ Step 3: Map country → payment methods
-    const paymentMethodsMap = {
-      NL: ['card', 'ideal', 'bancontact'],
-      DE: ['sofort', 'card'],
-      BE: ['bancontact', 'card'],
-      FR: ['card'],
-      CN: ['card'],
-      PK: ['card', 'ideal'], // fallback handled below
-      US: ['card'],
-      GB: ['card'],
-    };
-
-    let paymentMethods = paymentMethodsMap[req.body.userCountry] || ['card'];
-
-    // ✅ Step 4: Handle PKR → EUR fallback for Stripe
-    if (currency === 'pkr') {
-      currency = 'eur'; // Stripe doesn't support PKR, use EUR
-      const exchangeRate = 300; // example: 300 PKR = 1 EUR
-      amount = Math.round(amount / exchangeRate);
-      console.log(`💱 PKR converted to EUR: ${amount} EUR`);
-    }
-
-    // ✅ Step 5: Convert to smallest unit for Stripe
-    amount = amount * 100; // e.g., €20 → 2000 cents
+    // ✅ Convert to smallest unit for Stripe
+    amount = Math.round(amount * 100); // e.g., 200 PKR → 20000 paisa
     console.log(`📏 Amount in smallest unit: ${amount} ${currency}`);
 
-    // ✅ Step 6: Remove unsupported methods for non-EUR
-    if (currency !== 'eur') {
-      paymentMethods = paymentMethods.filter(
-        (m) => !['ideal', 'sofort', 'bancontact'].includes(m)
-      );
-    }
-
-    console.log(`💳 Final Payment Methods: ${paymentMethods.join(', ')}`);
-
-    // ✅ Step 7: Create PaymentIntent
+    // ✅ Create PaymentIntent with automatic local methods
     const paymentIntent = await stripe.paymentIntents.create({
       amount,
       currency,
-      payment_method_types: paymentMethods,
-      automatic_payment_methods: { enabled: false },
+      automatic_payment_methods: { enabled: true }, // Stripe picks supported methods
     });
 
     console.log(`✅ PaymentIntent Created: ${paymentIntent.id}`);
@@ -141,8 +109,6 @@ console.log("currency is", currency);
     return res.status(200).json({
       success: true,
       clientSecret: paymentIntent.client_secret,
-      paymentMethods,
-      country: req.body.userCountry,
       currency,
     });
 
