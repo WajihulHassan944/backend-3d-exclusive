@@ -1,0 +1,271 @@
+import Coupon from "../models/coupon.js";
+
+export const createCoupon = async (req, res) => {
+  try {
+    const {
+      code,
+      type,
+      amount,
+      description,
+      usageLimit,
+      expiryDate,
+      status,
+      minCartTotal,
+      maxCartTotal,
+      allowCombine,
+      excludeSaleItems,
+      productRestriction,
+      freeShipping,
+    } = req.body;
+
+    // 1. Validate required fields
+    if (!code || !type || !expiryDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Code, type, and expiry date are required",
+      });
+    }
+
+    // 2. Check if coupon code already exists (case-insensitive)
+    const existing = await Coupon.findOne({ code: code.toUpperCase() });
+    if (existing) {
+      return res.status(400).json({
+        success: false,
+        message: "Coupon code already exists",
+      });
+    }
+
+    // 3. Validate amount based on type
+    let finalAmount = amount || 0;
+    let finalFreeShipping = freeShipping || false;
+
+    if (type === "percentage") {
+      if (finalAmount <= 0 || finalAmount > 100) {
+        return res.status(400).json({
+          success: false,
+          message: "Percentage discount must be between 1 and 100",
+        });
+      }
+    }
+
+    if (type === "shipping") {
+      finalAmount = 0;
+      finalFreeShipping = true;
+    }
+
+    // 4. Create coupon object
+    const coupon = new Coupon({
+      code: code.toUpperCase(),
+      type,
+      amount: finalAmount,
+      description,
+      usageLimit: usageLimit || null,
+      expiryDate,
+      status: status || "active",
+      minCartTotal: minCartTotal || 0,
+      maxCartTotal: maxCartTotal || null,
+      allowCombine: allowCombine !== undefined ? allowCombine : true,
+      excludeSaleItems: excludeSaleItems || false,
+      productRestriction: productRestriction || [],
+      freeShipping: finalFreeShipping,
+    });
+
+    // 5. Save in DB
+    await coupon.save();
+
+    // 6. Return success response
+    return res.status(201).json({
+      success: true,
+      message: "Coupon created successfully",
+      data: coupon,
+    });
+  } catch (error) {
+    console.error("Error creating coupon:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while creating coupon",
+      error: error.message,
+    });
+  }
+};
+
+
+
+export const getAllCoupons = async (req, res) => {
+  try {
+    const coupons = await Coupon.find().sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      count: coupons.length,
+      data: coupons,
+    });
+  } catch (error) {
+    console.error("Error fetching coupons:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while fetching coupons",
+      error: error.message,
+    });
+  }
+};
+
+export const getCouponById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const coupon = await Coupon.findById(id);
+    if (!coupon) {
+      return res.status(404).json({
+        success: false,
+        message: "Coupon not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: coupon,
+    });
+  } catch (error) {
+    console.error("Error fetching coupon:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while fetching coupon",
+      error: error.message,
+    });
+  }
+};
+
+export const updateCoupon = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    let updates = { ...req.body };
+
+    // Normalize code if provided
+    if (updates.code) {
+      updates.code = updates.code.toUpperCase();
+    }
+
+    // Handle type-specific validation
+    if (updates.type === "percentage") {
+      if (updates.amount <= 0 || updates.amount > 100) {
+        return res.status(400).json({
+          success: false,
+          message: "Percentage discount must be between 1 and 100",
+        });
+      }
+    }
+
+    if (updates.type === "shipping") {
+      updates.amount = 0;
+      updates.freeShipping = true;
+    }
+
+    const coupon = await Coupon.findByIdAndUpdate(id, updates, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!coupon) {
+      return res.status(404).json({
+        success: false,
+        message: "Coupon not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Coupon updated successfully",
+      data: coupon,
+    });
+  } catch (error) {
+    console.error("Error updating coupon:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while updating coupon",
+      error: error.message,
+    });
+  }
+};
+
+export const deleteCoupon = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const coupon = await Coupon.findByIdAndDelete(id);
+    if (!coupon) {
+      return res.status(404).json({
+        success: false,
+        message: "Coupon not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Coupon deleted successfully",
+    });
+  } catch (error) {
+    console.error("Error deleting coupon:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while deleting coupon",
+      error: error.message,
+    });
+  }
+};
+
+
+
+export const getCouponStats = async (req, res) => {
+  try {
+    const coupons = await Coupon.find();
+
+    const totalCoupons = coupons.length;
+    const activeCoupons = coupons.filter((c) => c.status === "active").length;
+
+    // Total Savings = sum of (usageCount * amount)
+    const totalSavings = coupons.reduce((sum, c) => {
+      if (c.type === "percentage") {
+        // Example assumption: €100 average order -> savings = amount% of 100
+        const avgOrder = 100;
+        return sum + (c.usageCount * (avgOrder * (c.amount / 100)));
+      } else if (c.type === "fixed_cart" || c.type === "fixed_product") {
+        return sum + (c.usageCount * c.amount);
+      } else if (c.type === "shipping") {
+        // Example assumption: avg €10 shipping saved
+        return sum + (c.usageCount * 10);
+      }
+      return sum;
+    }, 0);
+
+    // Usage Rate = total usage / total usage limit
+    const totalUsage = coupons.reduce((sum, c) => sum + c.usageCount, 0);
+    const totalLimit = coupons.reduce(
+      (sum, c) => sum + (c.usageLimit || 0),
+      0
+    );
+    const usageRate =
+      totalLimit > 0 ? Math.round((totalUsage / totalLimit) * 100) : 0;
+
+    // Format in Euro
+    const euroFormatter = new Intl.NumberFormat("de-DE", {
+      style: "currency",
+      currency: "EUR",
+      minimumFractionDigits: 0,
+    });
+
+    res.json({
+      success: true,
+      data: {
+        totalCoupons,
+        activeCoupons,
+        totalSavings: euroFormatter.format(totalSavings), // e.g. "12.450 €"
+        usageRate: `${usageRate}%`,
+      },
+    });
+  } catch (err) {
+    console.error("Error fetching coupon stats:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};

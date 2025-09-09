@@ -3,6 +3,7 @@ import express from "express";
 import userRouter from "./routes/user.js";
 import walletRouter from "./routes/wallet.js";
 import uploadRouter from "./routes/b2Upload.js";
+import couponRouter from "./routes/coupons.js";
 import cartRouter from "./routes/cart.js";
 import cookieParser from "cookie-parser";
 import { errorMiddleware } from "./middlewares/error.js";
@@ -31,6 +32,7 @@ app.use("/api/auth", userRouter);
 app.use("/api/wallet", walletRouter);
 app.use('/api/b2', uploadRouter);
 app.use('/api/cart', cartRouter);
+app.use('/api/coupons', couponRouter);
 app.get("/", (req, res) => {
   res.send("Nice working backend by Muhammad Furqan Wajih ul Hassan");
 });
