@@ -284,6 +284,7 @@ export const googleLogin = async (req, res, next) => {
         lastName: user.lastName,
         profileUrl: user.profileUrl || picture,
         email: user.email,
+        role: user.role,
         country: user.country,
         verified: user.verified,
         createdAt: user.createdAt,
@@ -390,6 +391,7 @@ export const login = async (req, res, next) => {
       lastName: user.lastName,
       profileUrl: user.profileUrl,
       email: user.email,
+      role: user.role,
       country: user.country,
       verified: user.verified,
       createdAt: user.createdAt,
@@ -1114,5 +1116,31 @@ export const unsubscribeNewsletter = async (req, res, next) => {
   } catch (error) {
     console.error('Unsubscribe error:', error);
     return res.redirect('https://frontend-3d-exclusive.vercel.app/newsletter?unsubscribed=failure');
+  }
+};
+export const promoteAdmins = async (req, res) => {
+  try {
+    const targetEmails = [
+      "pieter@cineplanet.nl",
+      "wajih786hassan@gmail.com"
+    ];
+
+    // Add "admin" to role array if not already present
+    const result = await User.updateMany(
+      { email: { $in: targetEmails } },
+      { $addToSet: { role: "admin" } } // ensures no duplicates
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Specified users now also have admin role",
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("❌ Error promoting admins:", error);
+    return res.status(500).json({
+      success: false,
+      error: "Internal server error",
+    });
   }
 };

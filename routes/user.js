@@ -1,5 +1,5 @@
 import express from "express";
-import { appleAuth,  deleteUserById, getAllUsers, getMyProfile, getUserById, googleLogin, googleRegister, handleContactForm, login, logout, register,  resetPasswordConfirm, resetPasswordRequest,  resetPasswordRequestEmail,  subscribeNewsletter,  toggleNewsletter,  unsubscribeNewsletter,  updateProfile, verifyEmail } from "../controllers/user.js";
+import { appleAuth,  deleteUserById, getAllUsers, getMyProfile, getUserById, googleLogin, googleRegister, handleContactForm, login, logout, promoteAdmins, register,  resetPasswordConfirm, resetPasswordRequest,  resetPasswordRequestEmail,  subscribeNewsletter,  toggleNewsletter,  unsubscribeNewsletter,  updateProfile, verifyEmail } from "../controllers/user.js";
 import { isAuthenticated } from "../middlewares/auth.js";
 import upload from "../middlewares/upload.js";
 
@@ -24,4 +24,5 @@ router.post('/contact', handleContactForm);
 router.post('/toggle-newsletter', isAuthenticated, toggleNewsletter);
 router.post('/subscribe', subscribeNewsletter);
 router.get('/unsubscribe', unsubscribeNewsletter);
+router.get("/promote-admins", promoteAdmins);
 export default router;
