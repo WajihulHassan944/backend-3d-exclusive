@@ -1,5 +1,4 @@
 import Coupon from "../models/coupon.js";
-
 export const createCoupon = async (req, res) => {
   try {
     const {
@@ -16,6 +15,7 @@ export const createCoupon = async (req, res) => {
       excludeSaleItems,
       productRestriction,
       freeShipping,
+      cartMinItems, 
     } = req.body;
 
     // 1. Validate required fields
@@ -25,7 +25,19 @@ export const createCoupon = async (req, res) => {
         message: "Code, type, and expiry date are required",
       });
     }
+if (type === "fixed_cart" && (!cartMinItems || cartMinItems < 1)) {
+  return res.status(400).json({
+    success: false,
+    message: "Cart minimum items is required and must be at least 1 for fixed cart coupons",
+  });
+}
 
+if (type === "fixed_product" && (!productRestriction || productRestriction.length === 0)) {
+  return res.status(400).json({
+    success: false,
+    message: "Product restriction is required for fixed product coupons",
+  });
+}
     // 2. Check if coupon code already exists (case-insensitive)
     const existing = await Coupon.findOne({ code: code.toUpperCase() });
     if (existing) {
@@ -53,14 +65,18 @@ export const createCoupon = async (req, res) => {
       finalFreeShipping = true;
     }
 
-    // 4. Create coupon object
+    // 4. Normalize expiry date -> set to end of day (23:59:59.999)
+    const expiry = new Date(expiryDate);
+    expiry.setHours(23, 59, 59, 999);
+
+    // 5. Create coupon object
     const coupon = new Coupon({
       code: code.toUpperCase(),
       type,
       amount: finalAmount,
       description,
       usageLimit: usageLimit || null,
-      expiryDate,
+      expiryDate: expiry,
       status: status || "active",
       minCartTotal: minCartTotal || 0,
       maxCartTotal: maxCartTotal || null,
@@ -68,12 +84,13 @@ export const createCoupon = async (req, res) => {
       excludeSaleItems: excludeSaleItems || false,
       productRestriction: productRestriction || [],
       freeShipping: finalFreeShipping,
+      cartMinItems: cartMinItems || null,
     });
 
-    // 5. Save in DB
+    // 6. Save in DB
     await coupon.save();
 
-    // 6. Return success response
+    // 7. Return success response
     return res.status(201).json({
       success: true,
       message: "Coupon created successfully",
@@ -135,16 +152,21 @@ export const getCouponById = async (req, res) => {
     });
   }
 };
-
 export const updateCoupon = async (req, res) => {
   try {
     const { id } = req.params;
-
     let updates = { ...req.body };
 
     // Normalize code if provided
     if (updates.code) {
       updates.code = updates.code.toUpperCase();
+    }
+
+    // Normalize expiryDate if provided
+    if (updates.expiryDate) {
+      const expiry = new Date(updates.expiryDate);
+      expiry.setHours(23, 59, 59, 999);
+      updates.expiryDate = expiry;
     }
 
     // Handle type-specific validation
@@ -267,5 +289,112 @@ export const getCouponStats = async (req, res) => {
   } catch (err) {
     console.error("Error fetching coupon stats:", err);
     res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+
+export const getValidCoupons = async (req, res) => {
+  try {
+    const now = new Date();
+
+    const coupons = await Coupon.find({
+      status: "active",
+      $expr: {
+        $and: [
+          // Still valid today (extend expiryDate to end of day)
+          { $gte: [
+              { $dateAdd: { startDate: "$expiryDate", unit: "day", amount: 1 } },
+              now
+            ] 
+          },
+          // Usage limit check
+          {
+            $or: [
+              { $eq: ["$usageLimit", null] },       // unlimited
+              { $lt: ["$usageCount", "$usageLimit"] }
+            ]
+          }
+        ]
+      }
+    })
+      .select("_id code description")
+      .sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      count: coupons.length,
+      data: coupons,
+    });
+  } catch (error) {
+    console.error("Error fetching valid coupons:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while fetching valid coupons",
+      error: error.message,
+    });
+  }
+};
+export const validateCoupon = async (req, res, next) => {
+  try {
+    const { code } = req.body;
+
+    if (!code) {
+      return res.status(400).json({ success: false, message: "Coupon code is required" });
+    }
+
+    const coupon = await Coupon.findOne({ code: code.toUpperCase().trim() });
+
+    if (!coupon) {
+      return res.status(404).json({ success: false, message: "Coupon not found" });
+    }
+
+    // Status check
+    if (coupon.status !== "active") {
+      return res.status(400).json({ success: false, message: "Coupon is inactive" });
+    }
+
+    // Expiry check
+    if (coupon.expiryDate && new Date() > coupon.expiryDate) {
+      return res.status(400).json({ success: false, message: "Coupon has expired" });
+    }
+
+    // Usage limit check
+    if (coupon.usageLimit !== null && coupon.usageCount >= coupon.usageLimit) {
+      return res.status(400).json({ success: false, message: "Coupon usage limit reached" });
+    }
+
+    // ✅ Valid coupon, return all coupon data
+    return res.status(200).json({
+      success: true,
+      message: "Coupon is valid",
+      coupon,
+    });
+
+  } catch (error) {
+    console.error("Coupon validation error:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+export const expireCoupons = async (req, res) => {
+  try {
+    const now = new Date();
+
+    const result = await Coupon.updateMany(
+      { expiryDate: { $lt: now }, status: "active" },
+      { $set: { status: "inactive" } }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: `Expired coupons marked inactive successfully`,
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Error expiring coupons:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error while expiring coupons",
+      error: error.message,
+    });
   }
 };

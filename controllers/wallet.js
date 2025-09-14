@@ -11,6 +11,7 @@ import stripe from "../utils/stripe.js";
 import { isValidEUCountry, validateVATNumber } from "../utils/vat.js";
 
 import countries from 'i18n-iso-countries';
+import Coupon from '../models/coupon.js';
 const countryToCurrencyMap = {
   "Pakistan": "pkr",
   "United States": "usd",
@@ -265,8 +266,8 @@ export const removeCard = async (req, res, next) => {
 
 export const addFundsToWallet = async (req, res, next) => {
   try {
-  const { userId, amount, billingInfo, credits, currencySymbol, usePrimaryCard, stripeCard , localPaymentMethod} = req.body;
-
+  const { userId, amount, billingInfo, credits,discountAmount, currencySymbol, usePrimaryCard, stripeCard , localPaymentMethod, coupon} = req.body;
+console.log("Coupon data is", coupon);
     if (!userId || !amount) {
       return next(new ErrorHandler("User ID and amount are required", 400));
     }
@@ -331,7 +332,7 @@ const stripeCurrency = countryToCurrencyMap[rawCountry] || "eur";
 
     // 💶 Calculate totals
     vatAmount = amount * vatRate;
-    const totalAmount = amount + vatAmount;
+    const totalAmount = amount + vatAmount - discountAmount;
 
     console.log("💸 Base Amount:", amount);
     console.log("📈 VAT Rate:", vatRate);
@@ -411,6 +412,15 @@ const totalCreditsToAdd = credits.reduce((sum, credit) => {
 wallet.balance = Number(wallet.balance) + totalCreditsToAdd;
     await wallet.save();
 
+    if (coupon && coupon.code) {
+  const foundCoupon = await Coupon.findOne({ code: coupon.code });
+  if (foundCoupon) {
+    foundCoupon.usageCount += 1;
+    foundCoupon.usedBy.push({ userId: user._id, email: user.email });
+    await foundCoupon.save();
+  }
+}
+
     // 🧾 Create invoice
     const invoiceNumber = await generateInvoiceNumber();
     await Invoice.create({
@@ -422,9 +432,11 @@ wallet.balance = Number(wallet.balance) + totalCreditsToAdd;
       total: totalAmount,
       vatRate,
     method: stripePaymentDetails.method,
-
+priceBeforeDiscount: req.body.priceBeforeDiscount,
+  couponCode: req.body.coupon?.code || null, // ✅ save applied coupon
       isReverseCharge,
       vatNote,
+      discountAmount,
      currency: currencySymbol || "EUR",
 
      stripePaymentId: stripePaymentDetails.id,

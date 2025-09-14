@@ -73,6 +73,18 @@ const couponSchema = new mongoose.Schema(
         enum: [15, 50, 120],
       },
     ],
+cartMinItems: {
+  type: Number,
+  default: null, // null = no restriction
+  min: 1,        // must be at least 1 if provided
+},
+usedBy: [
+  {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+    email: { type: String },
+    usedAt: { type: Date, default: Date.now },
+  },
+],
 
     // Free shipping flag
     freeShipping: {

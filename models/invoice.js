@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { type } from 'os';
 
 const invoiceSchema = new mongoose.Schema({
   invoiceNumber: { type: String, required: true, unique: true }, // e.g. X3D-2025-0001
@@ -22,7 +23,9 @@ method: { type: String, default: "" },
   currency: { type: String, default: 'EUR' },
 
   stripePaymentId: String,
-
+priceBeforeDiscount: { type: Number, default: null }, // original subtotal before coupon
+discountAmount: {type: Number, default: null},
+couponCode: { type: String, default: null }, // applied coupon code
   billingInfo: {
     name: String,
     street: String,

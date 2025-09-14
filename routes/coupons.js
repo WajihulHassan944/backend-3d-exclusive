@@ -7,6 +7,9 @@ import {
   updateCoupon,
   deleteCoupon,
   getCouponStats,
+  getValidCoupons,
+  validateCoupon,
+  expireCoupons,
 } from "../controllers/coupon.js";
 
 
@@ -18,5 +21,8 @@ router.get("/get-coupon-by-id/:id", getCouponById);
 router.put("/update/:id", updateCoupon);
 router.delete("/delete/:id", deleteCoupon);
 router.get("/stats", getCouponStats);
+router.get("/valid", getValidCoupons);
+router.post("/validate-coupon", validateCoupon);
+router.get("/expire", expireCoupons);
 
 export default router;
