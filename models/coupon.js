@@ -85,6 +85,12 @@ usedBy: [
     usedAt: { type: Date, default: Date.now },
   },
 ],
+usageRestriction: {
+  restrictionCode: { type: String, trim: true },
+  restrictionAmount: { type: Number, default: 0 },
+  individualUseOnly: { type: Boolean, default: false }, 
+  userEmail: { type: String, trim: true, lowercase: true },
+},
 
     // Free shipping flag
     freeShipping: {

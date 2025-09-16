@@ -1,22 +1,24 @@
 import Coupon from "../models/coupon.js";
 export const createCoupon = async (req, res) => {
   try {
-    const {
-      code,
-      type,
-      amount,
-      description,
-      usageLimit,
-      expiryDate,
-      status,
-      minCartTotal,
-      maxCartTotal,
-      allowCombine,
-      excludeSaleItems,
-      productRestriction,
-      freeShipping,
-      cartMinItems, 
-    } = req.body;
+const {
+  code,
+  type,
+  amount,
+  description,
+  usageLimit,
+  expiryDate,
+  status,
+  minCartTotal,
+  maxCartTotal,
+  allowCombine,
+  excludeSaleItems,
+  productRestriction,
+  freeShipping,
+  cartMinItems,
+  usageRestriction,  
+} = req.body;
+
 
     // 1. Validate required fields
     if (!code || !type || !expiryDate) {
@@ -70,22 +72,31 @@ if (type === "fixed_product" && (!productRestriction || productRestriction.lengt
     expiry.setHours(23, 59, 59, 999);
 
     // 5. Create coupon object
-    const coupon = new Coupon({
-      code: code.toUpperCase(),
-      type,
-      amount: finalAmount,
-      description,
-      usageLimit: usageLimit || null,
-      expiryDate: expiry,
-      status: status || "active",
-      minCartTotal: minCartTotal || 0,
-      maxCartTotal: maxCartTotal || null,
-      allowCombine: allowCombine !== undefined ? allowCombine : true,
-      excludeSaleItems: excludeSaleItems || false,
-      productRestriction: productRestriction || [],
-      freeShipping: finalFreeShipping,
-      cartMinItems: cartMinItems || null,
-    });
+   const coupon = new Coupon({
+  code: code.toUpperCase(),
+  type,
+  amount: finalAmount,
+  description,
+  usageLimit: usageLimit || null,
+  expiryDate: expiry,
+  status: status || "active",
+  minCartTotal: minCartTotal || 0,
+  maxCartTotal: maxCartTotal || null,
+  allowCombine: allowCombine !== undefined ? allowCombine : true,
+  excludeSaleItems: excludeSaleItems || false,
+  productRestriction: productRestriction || [],
+  freeShipping: finalFreeShipping,
+  cartMinItems: cartMinItems || null,
+
+  // ✅ New nested object
+  usageRestriction: {
+    restrictionCode: usageRestriction?.restrictionCode || "",
+    restrictionAmount: usageRestriction?.restrictionAmount || 0,
+    individualUseOnly: usageRestriction?.individualUseOnly || false,
+    userEmail: usageRestriction?.userEmail || "",
+  },
+});
+
 
     // 6. Save in DB
     await coupon.save();
@@ -299,6 +310,7 @@ export const getValidCoupons = async (req, res) => {
 
     const coupons = await Coupon.find({
       status: "active",
+      "usageRestriction.individualUseOnly": { $ne: true }, // ✅ exclude individual use
       $expr: {
         $and: [
           // Still valid today (extend expiryDate to end of day)
@@ -361,6 +373,14 @@ export const validateCoupon = async (req, res, next) => {
     // Usage limit check
     if (coupon.usageLimit !== null && coupon.usageCount >= coupon.usageLimit) {
       return res.status(400).json({ success: false, message: "Coupon usage limit reached" });
+    }
+     if (coupon.usageRestriction?.individualUseOnly) {
+      if (!req.user || !req.user.email) {
+        return res.status(401).json({ success: false, message: "Authentication required to use this coupon" });
+      }
+      if (req.user.email.toLowerCase() !== coupon.usageRestriction.userEmail.toLowerCase()) {
+        return res.status(403).json({ success: false, message: "This coupon is restricted to another user" });
+      }
     }
 
     // ✅ Valid coupon, return all coupon data

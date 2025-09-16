@@ -11,6 +11,7 @@ import {
   validateCoupon,
   expireCoupons,
 } from "../controllers/coupon.js";
+import { isAuthenticated } from "../middlewares/auth.js";
 
 
 const router = express.Router();
@@ -22,7 +23,7 @@ router.put("/update/:id", updateCoupon);
 router.delete("/delete/:id", deleteCoupon);
 router.get("/stats", getCouponStats);
 router.get("/valid", getValidCoupons);
-router.post("/validate-coupon", validateCoupon);
+router.post("/validate-coupon",isAuthenticated, validateCoupon);
 router.get("/expire", expireCoupons);
 
 export default router;
