@@ -1,5 +1,4 @@
 import mongoose from 'mongoose';
-import { type } from 'os';
 
 const invoiceSchema = new mongoose.Schema({
   invoiceNumber: { type: String, required: true, unique: true }, // e.g. X3D-2025-0001
@@ -9,6 +8,9 @@ const invoiceSchema = new mongoose.Schema({
       amount: Number,
       credits: Number,
       addedAt: Date,
+      reason: { type: String, default: "" },   
+      expiryAt: { type: Date },                
+      isManual: { type: Boolean, default: false } 
     }
   ],
   amount: { type: Number, required: true }, // subtotal (excluding VAT)

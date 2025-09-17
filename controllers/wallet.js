@@ -9,7 +9,7 @@ import { Wallet } from "../models/wallet.js";
 import { generateInvoiceNumber } from "../utils/generateInvoiceNumber.js";
 import stripe from "../utils/stripe.js";
 import { isValidEUCountry, validateVATNumber } from "../utils/vat.js";
-
+import mongoose from "mongoose";
 import countries from 'i18n-iso-countries';
 import Coupon from '../models/coupon.js';
 const countryToCurrencyMap = {
@@ -426,7 +426,13 @@ wallet.balance = Number(wallet.balance) + totalCreditsToAdd;
     await Invoice.create({
       invoiceNumber,
       user: user._id,
-      credits,
+      credits: credits.map(c => ({
+    ...c,
+    addedAt: new Date(),
+    expiryAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)), // 1 year expiry
+    reason: "Wallet top-up purchase", // default reason
+    isManual: false, // since this is a normal payment
+  })),
       amount, // subtotal
       vat: vatAmount,
       total: totalAmount,
@@ -566,5 +572,251 @@ export const validateVATfunc = async (req, res) => {
   } catch (error) {
     console.error("Error validating VAT:", error);
     return res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+
+
+export const getAllCustomersCredits = async (req, res) => {
+  try {
+    const users = await User.find({});
+    const wallets = await Wallet.find({}).populate("userId");
+    const invoices = await Invoice.find({}).populate("user");
+
+    const data = users
+      .map(user => {
+        const wallet = wallets.find(
+          w => w.userId && w.userId._id.toString() === user._id.toString()
+        );
+        const userInvoices = invoices.filter(
+          inv => inv.user && inv.user._id.toString() === user._id.toString()
+        );
+
+        // total purchased credits
+        let totalPurchased = 0;
+        let expiryDate = null;
+
+        userInvoices.forEach(inv => {
+          inv.credits.forEach(c => {
+            totalPurchased += c.credits;
+
+            if (c.addedAt) {
+              const candidateExpiry = new Date(c.addedAt);
+              candidateExpiry.setFullYear(candidateExpiry.getFullYear() + 1);
+
+              if (!expiryDate || candidateExpiry > expiryDate) {
+                expiryDate = candidateExpiry;
+              }
+            }
+          });
+        });
+
+        const remaining = wallet?.balance || 0;
+        const used = totalPurchased - remaining;
+
+        const usagePercent =
+          totalPurchased > 0 ? Math.round((used / totalPurchased) * 100) : 0;
+
+        return {
+          id: user._id,
+          customer: `${user.firstName} ${user.lastName || ""}`.trim(),
+          email: user.email,
+          company: userInvoices?.[0]?.billingInfo?.companyName || "",
+          creditsUsage: `${used} / ${totalPurchased} (${usagePercent}%)`,
+          remaining,
+          expiryDate: expiryDate ? expiryDate.toISOString().split("T")[0] : null,
+          status: remaining > 0 ? "Active" : "Inactive",
+        };
+      })
+      // 🚀 filter out users with no credits purchased & no remaining balance
+      .filter(c => !(c.remaining === 0 && c.creditsUsage.startsWith("0 / 0")));
+
+    res.json(data);
+  } catch (err) {
+    console.error("Error fetching customers:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+
+
+
+
+
+/**
+ * Admin: Add credits to a customer
+ */
+export const addCredits = async (req, res) => {
+  try {
+    const { userId, credits, reason } = req.body;
+
+    if (!userId || !credits) {
+      return res.status(400).json({ error: "userId and credits are required" });
+    }
+
+    const wallet = await Wallet.findOne({ userId });
+    if (!wallet) return res.status(404).json({ error: "Wallet not found" });
+
+    // add credits to wallet
+    wallet.balance += credits;
+    await wallet.save();
+
+    // create manual invoice entry
+    const invoice = new Invoice({
+      invoiceNumber: `MAN-${Date.now()}`, // manual ID
+      user: new mongoose.Types.ObjectId(userId),
+      credits: [
+        {
+          credits,
+          addedAt: new Date(),
+          expiryAt: new Date(new Date().setFullYear(new Date().getFullYear() + 1)),
+          reason: reason || "Manual credit addition",
+          isManual: true,
+        },
+      ],
+      amount: 0,
+      vat: 0,
+      vatRate: 0,
+      isReverseCharge: false,
+      vatNote: "",
+      method: "manual",
+      total: 0,
+      currency: "CREDITS",
+    });
+
+    await invoice.save();
+
+    res.json({ message: "Credits added successfully", wallet, invoice });
+  } catch (err) {
+    console.error("Error adding credits:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+/**
+ * Admin: Remove credits from a customer
+ */
+export const removeCredits = async (req, res) => {
+  try {
+    const { userId, credits, reason } = req.body;
+
+    if (!userId || !credits) {
+      return res.status(400).json({ error: "userId and credits are required" });
+    }
+
+    const wallet = await Wallet.findOne({ userId });
+    if (!wallet) return res.status(404).json({ error: "Wallet not found" });
+
+    if (wallet.balance < credits) {
+      return res.status(400).json({ error: "Insufficient credits" });
+    }
+
+    // deduct credits
+    wallet.balance -= credits;
+    await wallet.save();
+
+    // log manual removal in invoice
+    const invoice = new Invoice({
+      invoiceNumber: `MAN-${Date.now()}`, 
+      user: new mongoose.Types.ObjectId(userId),
+      credits: [
+        {
+          credits: -credits, // negative to indicate deduction
+          addedAt: new Date(),
+          expiryAt: new Date(), // immediate
+          reason: reason || "Manual credit deduction",
+          isManual: true,
+        },
+      ],
+      amount: 0,
+      vat: 0,
+      vatRate: 0,
+      isReverseCharge: false,
+      vatNote: "",
+      method: "manual",
+      total: 0,
+      currency: "CREDITS",
+    });
+
+    await invoice.save();
+
+    res.json({ message: "Credits removed successfully", wallet, invoice });
+  } catch (err) {
+    console.error("Error removing credits:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+
+
+
+export const getCreditsStats = async (req, res) => {
+  try {
+    const users = await User.find({});
+    const wallets = await Wallet.find({}).populate("userId");
+    const invoices = await Invoice.find({}).populate("user");
+
+    let totalActiveCredits = 0;
+    let expiringSoon = 0;
+    let expiredCredits = 0;
+    let totalCustomers = 0;
+
+    const now = new Date();
+
+    users.forEach(user => {
+      const wallet = wallets.find(
+        w => w.userId && w.userId._id.toString() === user._id.toString()
+      );
+      const userInvoices = invoices.filter(
+        inv => inv.user && inv.user._id.toString() === user._id.toString()
+      );
+
+      let totalPurchased = 0;
+      let expiryDate = null;
+
+      userInvoices.forEach(inv => {
+        inv.credits.forEach(c => {
+          totalPurchased += c.credits;
+
+          if (c.addedAt) {
+            const candidateExpiry = new Date(c.addedAt);
+            candidateExpiry.setFullYear(candidateExpiry.getFullYear() + 1);
+
+            if (!expiryDate || candidateExpiry > expiryDate) {
+              expiryDate = candidateExpiry;
+            }
+          }
+        });
+      });
+
+      const remaining = wallet?.balance || 0;
+
+      // only count customers with actual purchased credits
+      if (!(remaining === 0 && totalPurchased === 0)) {
+        totalCustomers++;
+        totalActiveCredits += remaining;
+
+        if (expiryDate) {
+          if (expiryDate < now) {
+            expiredCredits++;
+          } else {
+            const daysLeft = (expiryDate - now) / (1000 * 60 * 60 * 24);
+            if (daysLeft <= 30) {
+              expiringSoon++;
+            }
+          }
+        }
+      }
+    });
+
+    res.json({
+      totalActiveCredits,
+      expiringSoon,
+      expiredCredits,
+      totalCustomers,
+    });
+  } catch (err) {
+    console.error("Error fetching credit stats:", err);
+    res.status(500).json({ error: "Server error" });
   }
 };

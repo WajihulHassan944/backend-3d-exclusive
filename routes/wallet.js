@@ -1,5 +1,5 @@
 import express from 'express';
-import { addBillingMethod, addFundsToWallet,  createPaymentIntentAllMethods,  createSetupIntent,  getVat,  getWalletByUserId,  removeCard, setPrimaryCard, validateVATfunc } from '../controllers/wallet.js';
+import { addBillingMethod, addCredits, addFundsToWallet,  createPaymentIntentAllMethods,  createSetupIntent,  getAllCustomersCredits,  getCreditsStats,  getVat,  getWalletByUserId,  removeCard, removeCredits, setPrimaryCard, validateVATfunc } from '../controllers/wallet.js';
 import { isAuthenticated } from "../middlewares/auth.js";
 
 
@@ -14,4 +14,8 @@ router.post('/validate', validateVATfunc);
 router.post('/checkVat', getVat);
 router.post('/create-setup-intent', isAuthenticated, createSetupIntent);
 router.post('/create-payment-intent-all-methods', isAuthenticated, createPaymentIntentAllMethods);
+router.get("/all-customers-credits", getAllCustomersCredits);
+router.post("/customers/add-credits", addCredits);
+router.post("/customers/remove-credits", removeCredits);
+router.get("/credits-stats", getCreditsStats);
 export default router;
