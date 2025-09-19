@@ -72,7 +72,15 @@ export const getR2SignedUrl = async (req, res) => {
 
 export const saveR2Metadata = async (req, res) => {
   try {
-    const { originalFileName, key, quality, lengthInSeconds , conversionFormat } = req.body;
+     const {
+      originalFileName,
+      key,
+      quality,
+      lengthInSeconds,
+      conversionFormat,
+      fileSize,
+      creditsUsed,
+    } = req.body;
 
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ error: 'User not found' });
@@ -84,13 +92,16 @@ export const saveR2Metadata = async (req, res) => {
 
     const signedUrl = await getSignedUrl(r2Client, getObjectCommand, { expiresIn: 60 * 60 * 24 * 7 });
 
-    const savedVideo = await Video.create({
+      const savedVideo = await Video.create({
       user: user._id,
       originalFileName,
       b2Url: signedUrl,
+      fileSize,
       lengthInSeconds,
       conversionFormat,
       quality,
+      creditsUsed,
+      progress: 0, 
     });
 
     const emailHtml = generateEmailTemplate({
@@ -126,9 +137,9 @@ export const saveR2Metadata = async (req, res) => {
 
 
 export const updateVideoStatusOrCompletion = async (req, res) => {
-  console.log("📥 Incoming request body:", req.body);
+  console.log(req.body);
   try {
-    const { videoId, plainUrl, status } = req.body;
+    const { videoId, plainUrl, status, progress } = req.body;
     
  if (status === "completed" && !plainUrl) {
     return res.status(400).json({
@@ -143,22 +154,27 @@ export const updateVideoStatusOrCompletion = async (req, res) => {
     const video = await Video.findById(videoId).populate("user");
     if (!video) return res.status(404).json({ error: "Video not found" });
 
-    // Update only status (e.g. "processing")
-    if (status && (!plainUrl || status !== "completed")) {
-      video.status = status;
-      await video.save();
+   // Update status or progress (e.g. "processing", "65%")
+if (status && (!plainUrl || status !== "completed")) {
+  video.status = status;
+  if (progress !== undefined) {
+    video.progress = progress;
+  }
+  await video.save();
 
-      // 🔔 Trigger status update via Pusher
-      await pusher.trigger(`exclusive`, "status-update", {
-       videoId, // required for matching
-      status
-      });
+  // 🔔 Trigger real-time status/progress update
+  await pusher.trigger(`exclusive`, "status-update", {
+    videoId,
+    status,
+    progress: video.progress,
+  });
 
-      return res.status(200).json({
-        success: true,
-        message: `Video status updated to "${status}"`,
-      });
-    }
+  return res.status(200).json({
+    success: true,
+    message: `Video status updated to "${status}"`,
+    progress: video.progress,
+  });
+}
 
     if (status === "completed" && plainUrl) {
       const urlObj = new URL(plainUrl);
@@ -177,6 +193,7 @@ export const updateVideoStatusOrCompletion = async (req, res) => {
 
       video.status = "completed";
       video.convertedUrl = signedUrl;
+      video.progress = 100;
       await video.save();
 
       const user = video.user;
@@ -218,5 +235,81 @@ export const updateVideoStatusOrCompletion = async (req, res) => {
   } catch (err) {
     console.error("❌ Error updating video:", err);
     return res.status(500).json({ error: "Server error while updating video" });
+  }
+};
+
+
+
+export const getConversionQueue = async (req, res) => {
+  try {
+    const videos = await Video.find()
+      .populate("user", "firstName lastName email")
+      .sort({ createdAt: -1 });
+
+    const formatted = videos.map((v) => ({
+      id: v._id,
+      status: v.status,
+      customer: `${v.user?.firstName || ""} ${v.user?.lastName || ""}`.trim(),
+      email: v.user?.email || "",
+      fileName: v.originalFileName,
+      fileSize: v.fileSize || "-",
+      type: v.conversionFormat || "-",
+      progress:
+        v.status === "completed"
+          ? "100%"
+          : v.status === "failed"
+          ? "Failed"
+          : `${v.progress || 0}%`,
+      credits: v.creditsUsed || 0,
+      duration: v.lengthInSeconds
+        ? `${Math.floor(v.lengthInSeconds / 60)}m ${v.lengthInSeconds % 60}s`
+        : "-",
+      errorMessage: v.errorMessage || "",
+      createdAt: v.createdAt,
+    }));
+
+    res.json({ success: true, queue: formatted });
+  } catch (err) {
+    console.error("Error fetching conversion queue:", err);
+    res.status(500).json({ success: false, message: "Failed to fetch conversion queue" });
+  }
+};
+
+
+
+
+export const getConversionStats = async (req, res) => {
+  try {
+    // Count all conversions
+    const totalConversions = await Video.countDocuments();
+
+    // Count per status
+    const completed = await Video.countDocuments({ status: "completed" });
+    const processing = await Video.countDocuments({ status: "processing" });
+    const queued = await Video.countDocuments({ status: { $in: ["queued", "pending", "uploaded"] } });
+    const errors = await Video.countDocuments({ status: "failed" });
+
+    // Success rate (avoid division by 0)
+    const successRate =
+      totalConversions > 0
+        ? ((completed / totalConversions) * 100).toFixed(1)
+        : 0;
+
+    const stats = {
+      totalConversions,
+      completed,
+      processing,
+      queued,
+      errors,
+      successRate: `${successRate}%`,
+    };
+
+    return res.status(200).json({ success: true, stats });
+  } catch (err) {
+    console.error("❌ Error fetching conversion stats:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch conversion stats",
+    });
   }
 };

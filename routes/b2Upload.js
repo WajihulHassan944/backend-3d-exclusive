@@ -2,7 +2,7 @@ import express from 'express';
 import { deleteAllUserVideos, deleteUpload, getAllUploads, getAllUploadsAuthenticated, uploadToB2 } from '../controllers/b2Upload.js';
 import { authenticateApiKey, isAuthenticated } from '../middlewares/auth.js';
 import { b2upload } from '../middlewares/b2upload.js';
-import { getR2SignedUrl, saveR2Metadata, updateVideoStatusOrCompletion } from '../controllers/r2upload.js';
+import { getConversionQueue, getConversionStats, getR2SignedUrl, saveR2Metadata, updateVideoStatusOrCompletion } from '../controllers/r2upload.js';
 
 const router = express.Router();
 
@@ -14,5 +14,6 @@ router.get('/videos',authenticateApiKey, getAllUploadsAuthenticated);
 router.delete('/uploads/:id', deleteUpload);
 router.delete('/uploads/user/:id', deleteAllUserVideos);
 router.put('/videos/update',authenticateApiKey, updateVideoStatusOrCompletion);
-
+router.get("/queue", getConversionQueue);
+router.get("/stats", getConversionStats);
 export default router;

@@ -820,3 +820,228 @@ export const getCreditsStats = async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+export const getAllOrders = async (req, res) => {
+  try {
+    const invoices = await Invoice.find({})
+      .populate("user") // bring in user info
+      .sort({ createdAt: -1 }); // latest first
+
+    const data = invoices.map((inv, idx) => {
+      const customerName = `${inv.user?.firstName || ""} ${inv.user?.lastName || ""}`.trim();
+
+      // Order ID (ORD-001 style)
+      const orderId = `ORD-${String(idx + 1).padStart(3, "0")}`;
+
+      // total credits in this order
+      const totalCredits = inv.credits?.reduce(
+        (sum, c) => sum + (c.credits || 0),
+        0
+      ) || 0;
+
+      return {
+        orderId,
+        customer: customerName,
+        email: inv.user?.email || "",
+        company: inv.billingInfo?.companyName || "",
+        amount: inv.total ? inv.total.toFixed(0) : "0",
+        currency: inv.currency || "€",
+        credits: totalCredits,
+        status: inv.status || "Completed", // e.g., pending, completed, failed
+        date: inv.issuedAt ? inv.issuedAt.toISOString().split("T")[0] : null,
+
+      };
+    });
+
+    res.json(data);
+  } catch (err) {
+    console.error("Error fetching orders:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+
+
+
+export const getOrderStats = async (req, res) => {
+  try {
+    const now = new Date();
+    let startDate, endDate = new Date(now);
+
+    const { period = "this_week" } = req.query;
+
+    if (period === "this_week") {
+      // Monday of this week
+      startDate = new Date(now);
+      startDate.setHours(0, 0, 0, 0);
+      startDate.setDate(startDate.getDate() - startDate.getDay() + 1); 
+    } else if (period === "last_week") {
+      // Monday of last week
+      startDate = new Date(now);
+      startDate.setHours(0, 0, 0, 0);
+      startDate.setDate(startDate.getDate() - startDate.getDay() - 6); // last Monday
+      endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + 6);
+      endDate.setHours(23, 59, 59, 999);
+    } else if (period === "last_month") {
+      startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+    } else {
+      // default this week
+      startDate = new Date(now);
+      startDate.setHours(0, 0, 0, 0);
+      startDate.setDate(startDate.getDate() - startDate.getDay() + 1);
+    }
+
+    const invoices = await Invoice.find({
+      issuedAt: { $gte: startDate, $lte: endDate }
+    });
+
+    const totalOrders = invoices.length;
+
+    const totalRevenue = invoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
+
+    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+
+    res.json({
+      totalOrders,
+      totalRevenue: totalRevenue.toFixed(2),
+      avgOrderValue: avgOrderValue.toFixed(2),
+      period
+    });
+  } catch (err) {
+    console.error("Error fetching order stats:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};export const createManualOrder = async (req, res, next) => {
+  try {
+    const {
+      customerName,
+      email,
+      companyName,
+      vatNumber,
+      address,
+      country,
+      amount: rawAmount,
+      credits: rawCredits,
+    } = req.body;
+
+    // ✅ Ensure numeric values
+    const amount = Number(rawAmount);
+    const credits = Number(rawCredits);
+
+    if (!email || !amount || !credits) {
+      return next(
+        new ErrorHandler("Email, amount, and credits are required", 400)
+      );
+    }
+
+    // ✅ Find user by email
+    const user = await User.findOne({ email });
+    if (!user) {
+      return next(
+        new ErrorHandler("Order can only be placed for registered user.", 400)
+      );
+    }
+
+    const wallet = await Wallet.findOne({ userId: user._id });
+    if (!wallet) {
+      return next(new ErrorHandler("Wallet not found for this user", 404));
+    }
+
+    // ⚡ VAT calculation
+    let vatRate = 0;
+    let vatAmount = 0;
+    let vatNote = "";
+    let isReverseCharge = false;
+
+    const countryCode = getCountryCode(country);
+    const isEU = isValidEUCountry(countryCode);
+
+    if (isEU) {
+      if (vatNumber) {
+        const isValidVat = await validateVATNumber(vatNumber, countryCode);
+        if (isValidVat) {
+          vatRate = 0;
+          isReverseCharge = true;
+          vatNote =
+            "VAT reverse charged pursuant to Article 138 of Directive 2006/112/EC";
+        } else {
+          vatRate = 0.21;
+        }
+      } else {
+        vatRate = 0.21;
+      }
+    } else {
+      vatRate = 0;
+      vatNote =
+        "VAT-exempt export of services outside the EU – Article 6(2) Dutch VAT Act";
+    }
+
+    vatAmount = amount * vatRate;
+    const totalAmount = amount + vatAmount;
+
+    // ✅ Update wallet balance
+    wallet.balance += credits;
+    await wallet.save();
+
+    // 🧾 Create invoice
+    const invoiceNumber = await generateInvoiceNumber();
+    const invoice = await Invoice.create({
+      invoiceNumber,
+      user: user._id,
+      credits: [
+        {
+          amount,
+          credits,
+          addedAt: new Date(),
+          expiryAt: new Date(
+            new Date().setFullYear(new Date().getFullYear() + 1)
+          ),
+          reason: "Manual order placement by admin",
+          isManual: true,
+        },
+      ],
+      amount, // subtotal
+      vat: vatAmount,
+      vatRate,
+      total: totalAmount,
+      isReverseCharge,
+      vatNote,
+      method: "manual",
+      currency: "EUR",
+      billingInfo: {
+        name: customerName,
+        companyName: companyName || "",
+        vatNumber: vatNumber || "",
+        address: address || "", // ✅ now treated as string
+        country: countryCode,
+        countryName: country,
+      },
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Manual order created successfully.",
+      order: invoice,
+      wallet: { balance: wallet.balance },
+    });
+  } catch (error) {
+    console.error("❌ Error in createManualOrder:", error);
+    next(
+      new ErrorHandler(error.message || "Failed to create manual order.", 500)
+    );
+  }
+};
