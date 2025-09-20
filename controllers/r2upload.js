@@ -137,9 +137,9 @@ export const saveR2Metadata = async (req, res) => {
 
 
 export const updateVideoStatusOrCompletion = async (req, res) => {
-  console.log(req.body);
+ 
   try {
-    const { videoId, plainUrl, status, progress } = req.body;
+const { videoId, plainUrl, status, progress, errorMessage, creditsUsed, quality } = req.body;
     
  if (status === "completed" && !plainUrl) {
     return res.status(400).json({
@@ -154,12 +154,23 @@ export const updateVideoStatusOrCompletion = async (req, res) => {
     const video = await Video.findById(videoId).populate("user");
     if (!video) return res.status(404).json({ error: "Video not found" });
 
-   // Update status or progress (e.g. "processing", "65%")
+// Update status or progress (e.g. "processing", "65%")
 if (status && (!plainUrl || status !== "completed")) {
   video.status = status;
+
   if (progress !== undefined) {
     video.progress = progress;
   }
+  if (errorMessage) {
+    video.errorMessage = errorMessage;
+  }
+  if (creditsUsed !== undefined) {
+    video.creditsUsed = creditsUsed;
+  }
+  if (quality) {
+    video.quality = quality;
+  }
+
   await video.save();
 
   // 🔔 Trigger real-time status/progress update
@@ -167,14 +178,21 @@ if (status && (!plainUrl || status !== "completed")) {
     videoId,
     status,
     progress: video.progress,
+    errorMessage: video.errorMessage,
+    creditsUsed: video.creditsUsed,
+    quality: video.quality,
   });
 
   return res.status(200).json({
     success: true,
     message: `Video status updated to "${status}"`,
     progress: video.progress,
+    errorMessage: video.errorMessage,
+    creditsUsed: video.creditsUsed,
+    quality: video.quality,
   });
 }
+
 
     if (status === "completed" && plainUrl) {
       const urlObj = new URL(plainUrl);

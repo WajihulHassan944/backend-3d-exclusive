@@ -852,6 +852,7 @@ export const getAllOrders = async (req, res) => {
       ) || 0;
 
       return {
+        _id: inv._id,
         orderId,
         customer: customerName,
         email: inv.user?.email || "",
@@ -1043,5 +1044,25 @@ export const getOrderStats = async (req, res) => {
     next(
       new ErrorHandler(error.message || "Failed to create manual order.", 500)
     );
+  }
+};
+
+
+
+export const deleteOrder = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const invoice = await Invoice.findById(id);
+    if (!invoice) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    await Invoice.findByIdAndDelete(id);
+
+    res.json({ message: "Order deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting order:", err);
+    res.status(500).json({ error: "Server error" });
   }
 };
