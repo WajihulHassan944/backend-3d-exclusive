@@ -22,6 +22,10 @@ const walletSchema = new mongoose.Schema({
     type: Number,
     default: 0.0,
   },
+  totalPurchased: {
+    type: Number,
+    default: 0.0, // keep track of all purchased credits, even if invoices are deleted
+  },
   cards: [cardSchema],
 });
 

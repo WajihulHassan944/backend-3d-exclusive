@@ -410,6 +410,7 @@ const totalCreditsToAdd = credits.reduce((sum, credit) => {
 }, 0); 
 
 wallet.balance = Number(wallet.balance) + totalCreditsToAdd;
+wallet.totalPurchased = Number(wallet.totalPurchased || 0) + totalCreditsToAdd; 
     await wallet.save();
 
     if (coupon && coupon.code) {
@@ -592,14 +593,14 @@ export const getAllCustomersCredits = async (req, res) => {
           inv => inv.user && inv.user._id.toString() === user._id.toString()
         );
 
-        // total purchased credits
-        let totalPurchased = 0;
+        // fallback if wallet not found
+        const remaining = wallet?.balance || 0;
+        let totalPurchased = wallet?.totalPurchased || 0;
         let expiryDate = null;
 
+        // expiry logic still based on invoice credits
         userInvoices.forEach(inv => {
           inv.credits.forEach(c => {
-            totalPurchased += c.credits;
-
             if (c.addedAt) {
               const candidateExpiry = new Date(c.addedAt);
               candidateExpiry.setFullYear(candidateExpiry.getFullYear() + 1);
@@ -611,8 +612,9 @@ export const getAllCustomersCredits = async (req, res) => {
           });
         });
 
-        const remaining = wallet?.balance || 0;
-        const used = totalPurchased - remaining;
+        // usage calculation
+        let used = totalPurchased - remaining;
+        if (used < 0) used = 0;
 
         const usagePercent =
           totalPurchased > 0 ? Math.round((used / totalPurchased) * 100) : 0;
@@ -623,13 +625,16 @@ export const getAllCustomersCredits = async (req, res) => {
           email: user.email,
           company: userInvoices?.[0]?.billingInfo?.companyName || "",
           creditsUsage: `${used} / ${totalPurchased} (${usagePercent}%)`,
+          totalPurchased,
           remaining,
           expiryDate: expiryDate ? expiryDate.toISOString().split("T")[0] : null,
           status: remaining > 0 ? "Active" : "Inactive",
         };
       })
-      // 🚀 filter out users with no credits purchased & no remaining balance
-      .filter(c => !(c.remaining === 0 && c.creditsUsage.startsWith("0 / 0")));
+      // filter out users with no credits at all
+      .filter(
+        c => !(c.remaining === 0 && c.totalPurchased === 0)
+      );
 
     res.json(data);
   } catch (err) {
@@ -659,6 +664,7 @@ export const addCredits = async (req, res) => {
 
     // add credits to wallet
     wallet.balance += credits;
+    wallet.totalPurchased += credits;
     await wallet.save();
 
     // create manual invoice entry
@@ -996,6 +1002,7 @@ export const getOrderStats = async (req, res) => {
 
     // ✅ Update wallet balance
     wallet.balance += credits;
+    wallet.totalPurchased += credits;
     await wallet.save();
 
     // 🧾 Create invoice
@@ -1063,6 +1070,31 @@ export const deleteOrder = async (req, res) => {
     res.json({ message: "Order deleted successfully" });
   } catch (err) {
     console.error("Error deleting order:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+export const deleteCustomersCredits = async (req, res) => {
+  try {
+    // Hardcoded customer IDs to clean up
+    const customerIds = [
+      "68b1a45b85d670e1575d7755", // Wajih ul Hassan
+      "68c037814d029ea89dc2787c", // Pieter van Groenewoud
+    ];
+
+    for (const userId of customerIds) {
+      // Reset wallet
+      await Wallet.updateOne(
+        { userId },
+        { $set: { balance: 0, totalPurchased: 0 } }
+      );
+
+      // Delete invoices
+      await Invoice.deleteMany({ user: userId });
+    }
+
+    res.json({ message: "Customers credits and invoices deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting customers data:", err);
     res.status(500).json({ error: "Server error" });
   }
 };
