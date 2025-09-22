@@ -21,6 +21,11 @@ const videoSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
+    creditsRefunded: {
+    type: Boolean,
+    default: false,
+  },
+
   lengthInSeconds: {
     type: Number,
   },

@@ -12,6 +12,7 @@ import { isValidEUCountry, validateVATNumber } from "../utils/vat.js";
 import mongoose from "mongoose";
 import countries from 'i18n-iso-countries';
 import Coupon from '../models/coupon.js';
+import { Video } from '../models/b2Upload.js';
 const countryToCurrencyMap = {
   "Pakistan": "pkr",
   "United States": "usd",
@@ -1096,5 +1097,49 @@ export const deleteCustomersCredits = async (req, res) => {
   } catch (err) {
     console.error("Error deleting customers data:", err);
     res.status(500).json({ error: "Server error" });
+  }
+};
+
+
+
+
+export const refundVideoCredits = async (req, res) => {
+  try {
+    const { videoId } = req.body;
+
+    if (!videoId) {
+      return res.status(400).json({ error: "Missing videoId" });
+    }
+
+    const video = await Video.findById(videoId);
+    if (!video) {
+      return res.status(404).json({ error: "Video not found" });
+    }
+
+    if (video.creditsRefunded) {
+      return res.status(400).json({ error: "Credits already refunded for this video" });
+    }
+
+    const wallet = await Wallet.findOne({ userId: video.user });
+    if (!wallet) {
+      return res.status(404).json({ error: "Wallet not found" });
+    }
+
+    // Increment wallet balance
+    wallet.balance += video.creditsUsed;
+    await wallet.save();
+
+    // Mark video as refunded
+    video.creditsRefunded = true;
+    await video.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Refunded ${video.creditsUsed} credits`,
+      newBalance: wallet.balance,
+    });
+  } catch (err) {
+    console.error("❌ Error refunding credits:", err);
+    return res.status(500).json({ error: "Server error while refunding credits" });
   }
 };

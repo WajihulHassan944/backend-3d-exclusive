@@ -283,7 +283,10 @@ export const getConversionQueue = async (req, res) => {
         ? `${Math.floor(v.lengthInSeconds / 60)}m ${v.lengthInSeconds % 60}s`
         : "-",
       errorMessage: v.errorMessage || "",
+      conversionUrl: v.b2Url || "",
+      convertedUrl: v.convertedUrl || "",
       createdAt: v.createdAt,
+      creditsRefunded: v.creditsRefunded,
     }));
 
     res.json({ success: true, queue: formatted });
@@ -329,5 +332,67 @@ export const getConversionStats = async (req, res) => {
       success: false,
       message: "Failed to fetch conversion stats",
     });
+  }
+};
+
+
+
+export const resendVideoNotification = async (req, res) => {
+  try {
+    const { videoId } = req.body;
+
+    if (!videoId) {
+      return res.status(400).json({ error: "Missing videoId" });
+    }
+
+    const video = await Video.findById(videoId).populate("user");
+    if (!video) {
+      return res.status(404).json({ error: "Video not found" });
+    }
+
+    if (video.status !== "completed" || !video.convertedUrl) {
+      return res.status(400).json({
+        error: "Video is not completed yet or converted URL missing",
+      });
+    }
+
+    const user = video.user;
+
+    // Build email template
+    const emailHtml = generateEmailTemplate({
+      firstName: user.firstName || "there",
+      subject: "🚀 Your Video is Ready!",
+      content: `
+        <p style="color:#fff;">Hi ${user.firstName},</p>
+        <p style="color:#fff;">Your video <strong>${video.originalFileName}</strong> has been successfully converted to 3D.</p>
+        <p style="color:#fff;">You can <a href="${video.convertedUrl}" style="color:#ff8c2f;">click here</a> to download it.</p>
+      `,
+    });
+
+    // Send email again
+    await transporter.sendMail({
+      from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+      to: user.email,
+      subject: "✅ Your 3D Video is Ready – Xclusive 3D",
+      html: emailHtml,
+    });
+
+    console.log(`📩 Resend email sent to ${user.email} for video ${video.originalFileName}`);
+
+    // Trigger pusher again
+    await pusher.trigger(`exclusive`, "status-update", {
+      videoId,
+      status: "completed",
+      signedUrl: video.convertedUrl,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Notification re-sent to ${user.email}`,
+      signedUrl: video.convertedUrl,
+    });
+  } catch (err) {
+    console.error("❌ Error resending video notification:", err);
+    return res.status(500).json({ error: "Server error while resending notification" });
   }
 };

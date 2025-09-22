@@ -34,7 +34,7 @@ app.use('/api/b2', uploadRouter);
 app.use('/api/cart', cartRouter);
 app.use('/api/coupons', couponRouter);
 app.get("/", (req, res) => {
-  res.send("Nice working backend by Muhammad Furqan Wajih ul Hassan");
+  res.send("Nice working backend by Wajih ul Hassan for Xclusive3d.com");
 });
 
 // Using Error Middleware
