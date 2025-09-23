@@ -303,26 +303,20 @@ export const getCouponStats = async (req, res) => {
   }
 };
 
-
 export const getValidCoupons = async (req, res) => {
   try {
     const now = new Date();
 
     const coupons = await Coupon.find({
       status: "active",
-      "usageRestriction.individualUseOnly": { $ne: true }, // ✅ exclude individual use
+      "usageRestriction.individualUseOnly": false, // only allow shared coupons
       $expr: {
         $and: [
-          // Still valid today (extend expiryDate to end of day)
-          { $gte: [
-              { $dateAdd: { startDate: "$expiryDate", unit: "day", amount: 1 } },
-              now
-            ] 
-          },
-          // Usage limit check
+          // expiryDate must be >= now
+          { $gte: ["$expiryDate", now] },
           {
             $or: [
-              { $eq: ["$usageLimit", null] },       // unlimited
+              { $eq: ["$usageLimit", null] }, // unlimited
               { $lt: ["$usageCount", "$usageLimit"] }
             ]
           }
@@ -346,6 +340,7 @@ export const getValidCoupons = async (req, res) => {
     });
   }
 };
+
 export const validateCoupon = async (req, res, next) => {
   try {
     const { code } = req.body;

@@ -13,6 +13,7 @@ import mongoose from "mongoose";
 import countries from 'i18n-iso-countries';
 import Coupon from '../models/coupon.js';
 import { Video } from '../models/b2Upload.js';
+import Stripe from 'stripe';
 const countryToCurrencyMap = {
   "Pakistan": "pkr",
   "United States": "usd",
@@ -858,17 +859,42 @@ export const getAllOrders = async (req, res) => {
         0
       ) || 0;
 
+        // ✅ Address fallback logic
+      let address = "";
+      if (inv.billingInfo?.address) {
+        address = inv.billingInfo.address;
+      } else {
+        const parts = [
+          inv.billingInfo?.street,
+          inv.billingInfo?.postalCode,
+          inv.billingInfo?.city,
+        ].filter(Boolean);
+        address = parts.length ? parts.join(", ") : "";
+      }
+
       return {
         _id: inv._id,
         orderId,
         customer: customerName,
         email: inv.user?.email || "",
         company: inv.billingInfo?.companyName || "",
+         vatNumber: inv.billingInfo?.vatNumber || "",
+        address,
+        country: inv.billingInfo?.countryName || "",
         amount: inv.total ? inv.total.toFixed(0) : "0",
         currency: inv.currency || "€",
         credits: totalCredits,
         status: inv.status || "Completed", // e.g., pending, completed, failed
         date: inv.issuedAt ? inv.issuedAt.toISOString().split("T")[0] : null,
+          time: inv.issuedAt
+          ? new Date(inv.issuedAt).toLocaleTimeString("en-GB", {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+              hour12: false,
+              timeZone: "UTC", // change if you want local time
+            })
+          : null,
 
       };
     });
@@ -882,13 +908,12 @@ export const getAllOrders = async (req, res) => {
 
 
 
-
 export const getOrderStats = async (req, res) => {
   try {
     const now = new Date();
     let startDate, endDate = new Date(now);
 
-    const { period = "this_week" } = req.query;
+    const { period = "this_week", customStart, customEnd } = req.query;
 
     if (period === "this_week") {
       // Monday of this week
@@ -899,13 +924,21 @@ export const getOrderStats = async (req, res) => {
       // Monday of last week
       startDate = new Date(now);
       startDate.setHours(0, 0, 0, 0);
-      startDate.setDate(startDate.getDate() - startDate.getDay() - 6); // last Monday
+      startDate.setDate(startDate.getDate() - startDate.getDay() - 6); 
       endDate = new Date(startDate);
       endDate.setDate(endDate.getDate() + 6);
       endDate.setHours(23, 59, 59, 999);
     } else if (period === "last_month") {
       startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       endDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+    } else if (period === "this_year") {
+      startDate = new Date(now.getFullYear(), 0, 1);
+      endDate = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+    } else if (period === "custom" && customStart && customEnd) {
+      startDate = new Date(customStart);
+      startDate.setHours(0, 0, 0, 0);
+      endDate = new Date(customEnd);
+      endDate.setHours(23, 59, 59, 999);
     } else {
       // default this week
       startDate = new Date(now);
@@ -918,22 +951,26 @@ export const getOrderStats = async (req, res) => {
     });
 
     const totalOrders = invoices.length;
-
     const totalRevenue = invoices.reduce((sum, inv) => sum + (inv.total || 0), 0);
-
     const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
 
     res.json({
       totalOrders,
       totalRevenue: totalRevenue.toFixed(2),
       avgOrderValue: avgOrderValue.toFixed(2),
-      period
+      period,
+      startDate,
+      endDate
     });
   } catch (err) {
     console.error("Error fetching order stats:", err);
     res.status(500).json({ error: "Server error" });
   }
-};export const createManualOrder = async (req, res, next) => {
+};
+
+
+
+export const createManualOrder = async (req, res, next) => {
   try {
     const {
       customerName,
@@ -1055,6 +1092,127 @@ export const getOrderStats = async (req, res) => {
   }
 };
 
+export const updateManualOrder = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const {
+      customerName,
+      email,
+      companyName,
+      vatNumber,
+      address,
+      country,
+      amount: rawAmount,
+      credits: rawCredits,
+    } = req.body;
+
+    const amount = Number(rawAmount);
+    const credits = Number(rawCredits);
+
+    if (!email || !amount || !credits) {
+      return next(
+        new ErrorHandler("Email, amount, and credits are required", 400)
+      );
+    }
+
+    // 🔎 Find invoice
+    const invoice = await Invoice.findById(id).populate("user");
+    if (!invoice) {
+      return next(new ErrorHandler("Invoice not found", 404));
+    }
+
+    // 🔎 Validate user
+    const user = await User.findOne({ email });
+    if (!user) {
+      return next(
+        new ErrorHandler("Order can only be updated for registered user.", 400)
+      );
+    }
+
+    const wallet = await Wallet.findOne({ userId: user._id });
+    if (!wallet) {
+      return next(new ErrorHandler("Wallet not found for this user", 404));
+    }
+
+    // ⚡ VAT calculation (same as create)
+    let vatRate = 0;
+    let vatAmount = 0;
+    let vatNote = "";
+    let isReverseCharge = false;
+
+    const countryCode = getCountryCode(country);
+    const isEU = isValidEUCountry(countryCode);
+
+    if (isEU) {
+      if (vatNumber) {
+        const isValidVat = await validateVATNumber(vatNumber, countryCode);
+        if (isValidVat) {
+          vatRate = 0;
+          isReverseCharge = true;
+          vatNote =
+            "VAT reverse charged pursuant to Article 138 of Directive 2006/112/EC";
+        } else {
+          vatRate = 0.21;
+        }
+      } else {
+        vatRate = 0.21;
+      }
+    } else {
+      vatRate = 0;
+      vatNote =
+        "VAT-exempt export of services outside the EU – Article 6(2) Dutch VAT Act";
+    }
+
+    vatAmount = amount * vatRate;
+    const totalAmount = amount + vatAmount;
+
+    // 🏦 Adjust wallet if credits changed
+    const prevCredits = invoice.credits?.[0]?.credits || 0;
+    const diff = credits - prevCredits;
+    if (diff !== 0) {
+      wallet.balance += diff;
+      wallet.totalPurchased += diff;
+      await wallet.save();
+    }
+
+    // 🧾 Update invoice fields
+    invoice.credits[0].amount = amount;
+    invoice.credits[0].credits = credits;
+    invoice.credits[0].reason = "Order updated by admin";
+    invoice.credits[0].updatedAt = new Date();
+
+    invoice.amount = amount;
+    invoice.vat = vatAmount;
+    invoice.vatRate = vatRate;
+    invoice.total = totalAmount;
+    invoice.isReverseCharge = isReverseCharge;
+    invoice.vatNote = vatNote;
+
+    invoice.billingInfo = {
+      name: customerName,
+      companyName: companyName || "",
+      vatNumber: vatNumber || "",
+      address: address || "",
+      country: countryCode,
+      countryName: country,
+    };
+
+    await invoice.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Manual order updated successfully.",
+      order: invoice,
+      wallet: { balance: wallet.balance },
+    });
+  } catch (error) {
+    console.error("❌ Error in updateManualOrder:", error);
+    next(
+      new ErrorHandler(error.message || "Failed to update manual order.", 500)
+    );
+  }
+};
+
 
 
 export const deleteOrder = async (req, res) => {
@@ -1141,5 +1299,78 @@ export const refundVideoCredits = async (req, res) => {
   } catch (err) {
     console.error("❌ Error refunding credits:", err);
     return res.status(500).json({ error: "Server error while refunding credits" });
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+const stripes = new Stripe(process.env.STRIPE_SECRET_KEY);
+
+export const deleteCustomer = async (req, res) => {
+  try {
+    const { userId, stripeCustomerId } = req.body;
+
+    if (!userId || !stripeCustomerId) {
+      return res.status(400).json({
+        success: false,
+        message: "userId and stripeCustomerId are required",
+      });
+    }
+
+    // 1. Delete the customer in Stripe
+    const deletedCustomer = await stripes.customers.del(stripeCustomerId);
+
+    // 2. Update wallet for that user
+    const updatedWallet = await Wallet.findOneAndUpdate(
+      { userId, stripeCustomerId },
+      { $unset: { stripeCustomerId: "" }, $set: { cards: [] } }, // also clear cards
+      { new: true }
+    );
+
+    if (!updatedWallet) {
+      return res.status(404).json({
+        success: false,
+        message: "Wallet not found for this user",
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Customer deleted successfully from Stripe and wallet updated",
+      deletedCustomer,
+      wallet: updatedWallet,
+    });
+  } catch (error) {
+    console.error("Error deleting customer:", error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+
+
+
+export const getInvoiceById = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Populate user if you need user info in invoice
+    const invoice = await Invoice.findById(id).populate("user", "firstName lastName email");
+
+    if (!invoice) {
+      return res.status(404).json({ success: false, message: "Invoice not found" });
+    }
+
+    res.status(200).json({ success: true, invoice });
+  } catch (error) {
+    console.error("Error fetching invoice:", error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 };

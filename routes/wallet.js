@@ -1,5 +1,5 @@
 import express from 'express';
-import { addBillingMethod, addCredits, addFundsToWallet,  createManualOrder,  createPaymentIntentAllMethods,  createSetupIntent,  deleteCustomersCredits,  deleteOrder,  getAllCustomersCredits,  getAllOrders,  getCreditsStats,  getOrderStats,  getVat,  getWalletByUserId,  refundVideoCredits,  removeCard, removeCredits, setPrimaryCard, validateVATfunc } from '../controllers/wallet.js';
+import { addBillingMethod, addCredits, addFundsToWallet,  createManualOrder,  createPaymentIntentAllMethods,  createSetupIntent,  deleteCustomer,  deleteCustomersCredits,  deleteOrder,  getAllCustomersCredits,  getAllOrders,  getCreditsStats,  getInvoiceById,  getOrderStats,  getVat,  getWalletByUserId,  refundVideoCredits,  removeCard, removeCredits, setPrimaryCard, updateManualOrder, validateVATfunc } from '../controllers/wallet.js';
 import { isAuthenticated } from "../middlewares/auth.js";
 
 
@@ -24,4 +24,7 @@ router.post('/orders/manual-order', createManualOrder);
 router.delete("/order/:id", deleteOrder);
 router.get("/delete-customers-credits", deleteCustomersCredits);
 router.post("/videos/refund-credits", refundVideoCredits);
+router.delete("/customer/delete", deleteCustomer);
+router.put("/orders/manual-order/:id", updateManualOrder);
+router.get("/getInvoiceById/:id", getInvoiceById);
 export default router;

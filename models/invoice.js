@@ -36,6 +36,7 @@ couponCode: { type: String, default: null }, // applied coupon code
     country: String,        // ISO code (e.g. 'NL')
     countryName: String,    // Full name (e.g. 'Netherlands')
     companyName: String,
+    address: String,
     vatNumber: String,
   },
 
