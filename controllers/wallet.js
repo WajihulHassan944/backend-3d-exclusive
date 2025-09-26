@@ -14,6 +14,8 @@ import countries from 'i18n-iso-countries';
 import Coupon from '../models/coupon.js';
 import { Video } from '../models/b2Upload.js';
 import Stripe from 'stripe';
+import generateEmailTemplate from '../utils/emailTemplate.js';
+import { transporter } from '../utils/mailer.js';
 const countryToCurrencyMap = {
   "Pakistan": "pkr",
   "United States": "usd",
@@ -112,6 +114,7 @@ export const createPaymentIntentAllMethods = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       clientSecret: paymentIntent.client_secret,
+      paymentIntentId: paymentIntent.id,
       currency,
     });
 
@@ -396,7 +399,7 @@ if (selectedCard) {
   // User paid via another method (e.g., iDEAL, Bancontact, Alipay)
   // We assume payment is already handled via Stripe Elements setup
   stripePaymentDetails = {
-    id: "manual-element",
+    id: req.body.paymentIntentId,
     amount: Math.round(totalAmount * 100),
     currency: stripeCurrency,
     status: "succeeded",
@@ -871,32 +874,35 @@ export const getAllOrders = async (req, res) => {
         ].filter(Boolean);
         address = parts.length ? parts.join(", ") : "";
       }
+return {
+  _id: inv._id,
+  orderId,
+  customer: customerName,
+  email: inv.user?.email || "",
+  company: inv.billingInfo?.companyName || "",
+  vatNumber: inv.billingInfo?.vatNumber || "",
+  street: inv.billingInfo?.street || "",
+  postalCode: inv.billingInfo?.postalCode || "",
+  city: inv.billingInfo?.city || "",
+  country: inv.billingInfo?.countryName || "",
+  amount: inv.total ? inv.total.toFixed(0) : "0",
+  currency: inv.currency || "€",
+  credits: totalCredits,
+  status: inv.status || "Completed",
+  method: inv.method || "Manual order",
+  notes: inv.notes || "",
+  date: inv.issuedAt ? inv.issuedAt.toISOString().split("T")[0] : null,
+  time: inv.issuedAt
+    ? new Date(inv.issuedAt).toLocaleTimeString("en-GB", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false,
+        timeZone: "UTC",
+      })
+    : null,
+};
 
-      return {
-        _id: inv._id,
-        orderId,
-        customer: customerName,
-        email: inv.user?.email || "",
-        company: inv.billingInfo?.companyName || "",
-         vatNumber: inv.billingInfo?.vatNumber || "",
-        address,
-        country: inv.billingInfo?.countryName || "",
-        amount: inv.total ? inv.total.toFixed(0) : "0",
-        currency: inv.currency || "€",
-        credits: totalCredits,
-        status: inv.status || "Completed", // e.g., pending, completed, failed
-        date: inv.issuedAt ? inv.issuedAt.toISOString().split("T")[0] : null,
-          time: inv.issuedAt
-          ? new Date(inv.issuedAt).toLocaleTimeString("en-GB", {
-              hour: "2-digit",
-              minute: "2-digit",
-              second: "2-digit",
-              hour12: false,
-              timeZone: "UTC", // change if you want local time
-            })
-          : null,
-
-      };
     });
 
     res.json(data);
@@ -972,16 +978,22 @@ export const getOrderStats = async (req, res) => {
 
 export const createManualOrder = async (req, res, next) => {
   try {
-    const {
-      customerName,
-      email,
-      companyName,
-      vatNumber,
-      address,
-      country,
-      amount: rawAmount,
-      credits: rawCredits,
-    } = req.body;
+   const {
+  customerName,
+  email,
+  companyName,
+  vatNumber,
+  street,
+  postalCode,
+  city,
+  country,
+  amount: rawAmount,
+  credits: rawCredits,
+  status,   // ✅ new
+  notes,    // ✅ new
+  method,   // ✅ allow override if admin wants (else fallback)
+} = req.body;
+
 
     // ✅ Ensure numeric values
     const amount = Number(rawAmount);
@@ -1066,16 +1078,20 @@ export const createManualOrder = async (req, res, next) => {
       total: totalAmount,
       isReverseCharge,
       vatNote,
-      method: "manual",
+       method: method || "manual", // ✅ dynamic
+  status: status || "completed", 
+  notes: notes || "",          // ✅ admin comments
       currency: "EUR",
-      billingInfo: {
-        name: customerName,
-        companyName: companyName || "",
-        vatNumber: vatNumber || "",
-        address: address || "", // ✅ now treated as string
-        country: countryCode,
-        countryName: country,
-      },
+    billingInfo: {
+  name: customerName,
+  companyName: companyName || "",
+  vatNumber: vatNumber || "",
+  street: street || "",
+  postalCode: postalCode || "",
+  city: city || "",
+  country: countryCode,
+  countryName: country,
+},
     });
 
     return res.status(200).json({
@@ -1095,16 +1111,21 @@ export const createManualOrder = async (req, res, next) => {
 export const updateManualOrder = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const {
-      customerName,
-      email,
-      companyName,
-      vatNumber,
-      address,
-      country,
-      amount: rawAmount,
-      credits: rawCredits,
-    } = req.body;
+  const {
+  customerName,
+  email,
+  companyName,
+  vatNumber,
+  street,
+  postalCode,
+  city,
+  country,
+  amount: rawAmount,
+  credits: rawCredits,
+  status,   // ✅ new
+  notes,    // ✅ new
+  method,   // ✅ new
+} = req.body;
 
     const amount = Number(rawAmount);
     const credits = Number(rawCredits);
@@ -1187,15 +1208,20 @@ export const updateManualOrder = async (req, res, next) => {
     invoice.total = totalAmount;
     invoice.isReverseCharge = isReverseCharge;
     invoice.vatNote = vatNote;
+invoice.billingInfo = {
+  name: customerName,
+  companyName: companyName || "",
+  vatNumber: vatNumber || "",
+  street: street || "",
+  postalCode: postalCode || "",
+  city: city || "",
+  country: countryCode,
+  countryName: country,
+};
 
-    invoice.billingInfo = {
-      name: customerName,
-      companyName: companyName || "",
-      vatNumber: vatNumber || "",
-      address: address || "",
-      country: countryCode,
-      countryName: country,
-    };
+invoice.method = method || invoice.method || "manual"; // ✅ allow update
+invoice.status = status || invoice.status || "completed"; // ✅ update or keep existing
+invoice.notes = notes || invoice.notes || "";           // ✅ update or keep existing
 
     await invoice.save();
 
@@ -1372,5 +1398,134 @@ export const getInvoiceById = async (req, res) => {
   } catch (error) {
     console.error("Error fetching invoice:", error);
     res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+
+
+export const cancelOrder = async (req, res, next) => {
+  try {
+    const { id } = req.params; // invoice id
+    const { reason, refundType } = req.body; 
+    // refundType: "full" | "partial" | "none"
+
+    const invoice = await Invoice.findById(id).populate("user");
+    if (!invoice) return next(new ErrorHandler("Invoice not found", 404));
+if (invoice.status === "cancelled") {
+  return res.status(400).json({
+    success: false,
+    message: "This order has already been cancelled.",
+  });
+}
+    const wallet = await Wallet.findOne({ userId: invoice.user._id });
+    if (!wallet) return next(new ErrorHandler("Wallet not found", 404));
+
+    let refund = null;
+    let revokedCredits = 0;
+
+    if (invoice.credits?.[0]?.isManual) {
+      // just deduct credits
+      revokedCredits = invoice.credits[0].credits;
+      wallet.balance = Math.max(wallet.balance - revokedCredits, 0);
+
+      wallet.ledger.push({
+        type: "manual_revoke",
+        credits: -revokedCredits,
+        amount: 0,
+        orderId: invoice._id,
+        note: reason
+      });
+    } else {
+      if (refundType !== "none") {
+        const chargeId = invoice.stripePaymentId;
+        if (!chargeId) {
+          return next(new ErrorHandler("No Stripe payment found for refund.", 400));
+        }
+
+        let refundAmount = 0;
+        if (refundType === "full") {
+          refundAmount = Math.round(invoice.total * 100);
+          revokedCredits = invoice.credits[0].credits;
+        }  else if (refundType === "partial") {
+  revokedCredits = Math.floor(invoice.credits[0].credits / 2); // revoke half credits
+  refundAmount = Math.round(invoice.total * 100 / 2); // refund half amount
+}
+
+        // 🔄 Stripe Refund
+        refund = await stripe.refunds.create({
+          payment_intent: chargeId,
+          amount: refundAmount,
+          metadata: { orderId: invoice._id.toString() }
+        }, { idempotencyKey: `refund_${invoice._id}` });
+
+        // ⚡ Wallet adjustment
+        wallet.balance = Math.max(wallet.balance - revokedCredits, 0);
+
+        wallet.ledger.push({
+          type: "refund_adjust",
+          credits: -revokedCredits,
+          amount: -(refundAmount / 100),
+          orderId: invoice._id,
+          refundId: refund.id,
+          note: reason
+        });
+
+        // 🧾 Add refund to invoice
+        invoice.refunds.push({
+          refundId: refund.id,
+          amount: refund.amount / 100,
+          reason
+        });
+      }
+    }
+
+    // 📝 Update invoice status
+    invoice.status = "cancelled";
+    invoice.cancelledAt = new Date();
+    invoice.notes = reason || invoice.notes;
+
+    await Promise.all([wallet.save(), invoice.save()]);
+
+// 📧 Send cancellation email
+const emailHtml = generateEmailTemplate({
+  firstName: invoice.user.firstName || "there",
+  subject: "Your Order Has Been Cancelled",
+  content: `
+    <p style="color:#fff;">Hi ${invoice.user.firstName || "there"},</p>
+    <p style="color:#fff;">Your order <strong>${invoice.invoiceNumber}</strong> has been cancelled.</p>
+    <p style="color:#fff;">Reason: <em>${reason || "No reason provided"}</em></p>
+    <p style="color:#fff;">Revoked Credits: <strong>${revokedCredits}</strong></p>
+    ${
+      refund
+        ? `
+          <p style="color:#fff;">Refund Amount: <strong>${(refund.amount / 100).toFixed(2)} ${refund.currency.toUpperCase()}</strong></p>
+          <p style="color:#fff;">Refund Status: <strong>${refund.status}</strong></p>
+          <p style="color:#fff;">Refund ID: <strong>${refund.id}</strong></p>
+        `
+        : `<p style="color:#fff;">No monetary refund was issued for this order.</p>`
+    }
+    <p style="color:#fff;">Your updated wallet balance: <strong>${wallet.balance}</strong> credits</p>
+  `,
+});
+
+await transporter.sendMail({
+  from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+  to: invoice.user.email,
+  subject: "Order Cancelled – Xclusive 3D",
+  html: emailHtml,
+});
+
+console.log(`📩 Cancellation email sent to ${invoice.user.email} for order ${invoice._id}`);
+
+    return res.status(200).json({
+      success: true,
+      message: "Order cancelled and refund handled successfully.",
+      revokedCredits,
+      refund,
+      walletBalance: wallet.balance
+    });
+  } catch (error) {
+    console.error("❌ Error in cancelOrder:", error);
+    next(new ErrorHandler(error.message || "Failed to cancel order.", 500));
   }
 };

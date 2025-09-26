@@ -1,5 +1,12 @@
 import mongoose from 'mongoose';
 
+const refundSchema = new mongoose.Schema({
+  refundId: String, // Stripe refund ID
+  amount: Number,
+  reason: String,
+  createdAt: { type: Date, default: Date.now }
+});
+
 const invoiceSchema = new mongoose.Schema({
   invoiceNumber: { type: String, required: true, unique: true }, // e.g. X3D-2025-0001
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
@@ -39,8 +46,17 @@ couponCode: { type: String, default: null }, // applied coupon code
     address: String,
     vatNumber: String,
   },
+ status: { 
+    type: String, 
+    enum: ["pending", "paid", "cancelled", "completed"], 
+    default: "completed" 
+  },
 
+  notes: { type: String, default: "" },
   issuedAt: { type: Date, default: Date.now },
+
+  refunds: [refundSchema],   
+  cancelledAt: { type: Date }
 });
 
 export const Invoice = mongoose.model('Invoice', invoiceSchema);
