@@ -1517,13 +1517,19 @@ await transporter.sendMail({
 
 console.log(`📩 Cancellation email sent to ${invoice.user.email} for order ${invoice._id}`);
 
-    return res.status(200).json({
-      success: true,
-      message: "Order cancelled and refund handled successfully.",
-      revokedCredits,
-      refund,
-      walletBalance: wallet.balance
-    });
+   const responsePayload = {
+  success: true,
+  message: "Order cancelled successfully.",
+  revokedCredits,
+  walletBalance: wallet.balance
+};
+
+// only include refund if it's not manual
+if (!invoice.credits?.[0]?.isManual && refund) {
+  responsePayload.refund = refund;
+}
+
+return res.status(200).json(responsePayload);
   } catch (error) {
     console.error("❌ Error in cancelOrder:", error);
     next(new ErrorHandler(error.message || "Failed to cancel order.", 500));
