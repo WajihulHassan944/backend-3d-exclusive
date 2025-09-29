@@ -7,6 +7,7 @@ import { transporter } from '../utils/mailer.js';
 import generateEmailTemplate from '../utils/emailTemplate.js';
 import { Wallet } from '../models/wallet.js';
 import { pusher } from '../utils/pusher.js';
+import { Invoice } from '../models/invoice.js';
 const r2Client = new S3Client({
   endpoint: process.env.R2_ENDPOINT,
   forcePathStyle: true, 
@@ -331,6 +332,89 @@ export const getConversionStats = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch conversion stats",
+    });
+  }
+};
+
+
+export const getConversionDashboard = async (req, res) => {
+  try {
+    // 1️⃣ Conversion Stats
+    const totalConversions = await Video.countDocuments();
+    const completed = await Video.countDocuments({ status: "completed" });
+    const processing = await Video.countDocuments({ status: "processing" });
+    const queued = await Video.countDocuments({ status: { $in: ["queued", "pending", "uploaded"] } });
+    const failed = await Video.countDocuments({ status: "failed" });
+
+    const successRate =
+      totalConversions > 0
+        ? ((completed / totalConversions) * 100).toFixed(1)
+        : 0;
+
+    const stats = {
+      inProgress: processing,
+      queued,
+      completed,
+      failed,
+      completionRate: `${successRate}%`,
+    };
+
+    // 2️⃣ Recent Orders (latest 10 invoices)
+    const invoices = await Invoice.find({})
+      .populate("user") // get customer info
+      .sort({ createdAt: -1 })
+      .limit(10);
+
+    const recentOrders = invoices.map((inv, idx) => {
+      const customerName = `${inv.user?.firstName || ""} ${inv.user?.lastName || ""}`.trim();
+
+      // Order ID (ORD-001 style)
+      const orderId = `ORD-${String(idx + 1).padStart(3, "0")}`;
+
+      // total credits in this order
+      const totalCredits =
+        inv.credits?.reduce((sum, c) => sum + (c.credits || 0), 0) || 0;
+
+      // Date/time handling
+      const issuedAt = inv.issuedAt || inv.createdAt;
+      const timeAgo = issuedAt
+        ? Math.floor((Date.now() - new Date(issuedAt).getTime()) / 60000) + " min ago"
+        : "-";
+
+      return {
+        _id: inv._id,
+        orderId,
+        customer: customerName,
+        email: inv.user?.email || "",
+        company: inv.billingInfo?.companyName || "",
+        vatNumber: inv.billingInfo?.vatNumber || "",
+        street: inv.billingInfo?.street || "",
+        postalCode: inv.billingInfo?.postalCode || "",
+        city: inv.billingInfo?.city || "",
+        country: inv.billingInfo?.countryName || "",
+        amount: inv.total ? inv.total.toFixed(2) : "0.00",
+        currency: inv.currency || "€",
+        credits: totalCredits,
+        status: inv.status || "Completed",
+        method: inv.method || "Manual order",
+        notes: inv.notes || "",
+        timeAgo,
+      };
+    });
+
+    // 3️⃣ Final response
+    return res.status(200).json({
+      success: true,
+      dashboard: {
+        stats,
+        recentOrders,
+      },
+    });
+  } catch (err) {
+    console.error("❌ Error fetching conversion dashboard:", err);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch conversion dashboard",
     });
   }
 };
