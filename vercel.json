@@ -1,9 +1,10 @@
 {
   "version": 2,
-  "name": "backend-for-servicemarketplace",
-  "builds": [{ "src": "server.js", "use": "@vercel/node" }],
+  "functions": {
+    "server.js": { "runtime": "nodejs20.x" }
+  },
   "routes": [
-    { "src": "/(.*)", "dest": "/server.js" }
+    { "src": "/(.*)", "dest": "server.js" }
   ],
   "crons": [
     {
