@@ -41,6 +41,13 @@ const videoSchema = new mongoose.Schema({
       "Audio Transcription",
     ],
   },
+  threeDExperience: {
+  type: String,
+  enum: ["Cinema", "Comfort", "Aggressive"],
+  default: "Comfort",
+},
+estimatedProcessingTime: { type: Number }, // in seconds or minutes
+
   quality: {
     type: String,
   },
@@ -61,6 +68,11 @@ const videoSchema = new mongoose.Schema({
     type: String,
     default: "",
   },
+startedAt: {
+  type: Date,
+  default: null, // set when processing begins
+},
+
   createdAt: {
     type: Date,
     default: Date.now,

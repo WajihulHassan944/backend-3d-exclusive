@@ -73,7 +73,7 @@ export const getR2SignedUrl = async (req, res) => {
 
 export const saveR2Metadata = async (req, res) => {
   try {
-     const {
+    const {
       originalFileName,
       key,
       quality,
@@ -81,19 +81,47 @@ export const saveR2Metadata = async (req, res) => {
       conversionFormat,
       fileSize,
       creditsUsed,
+      threeDExperience
     } = req.body;
 
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
+    // ✅ Generate signed URL from R2
     const getObjectCommand = new GetObjectCommand({
       Bucket: process.env.R2_BUCKET_NAME,
       Key: key,
     });
 
-    const signedUrl = await getSignedUrl(r2Client, getObjectCommand, { expiresIn: 60 * 60 * 24 * 7 });
+    const signedUrl = await getSignedUrl(r2Client, getObjectCommand, {
+      expiresIn: 60 * 60 * 24 * 7, // 7 days
+    });
 
-      const savedVideo = await Video.create({
+    // ✅ Format experience text
+    const formattedExperience =
+      threeDExperience?.charAt(0).toUpperCase() +
+      threeDExperience?.slice(1).toLowerCase();
+
+   // ✅ Estimate processing time dynamically based on resolution
+// Assume average video FPS = 30
+let renderFPS;
+
+// Extract numeric resolution value, e.g. "1080p" → 1080
+const resolution = parseInt(quality.replace(/\D/g, ''), 10);
+
+// Set FPS dynamically based on resolution range
+if (resolution <= 480) renderFPS = 14;        // SD
+else if (resolution <= 720) renderFPS = 12;   // HD Ready
+else if (resolution <= 1080) renderFPS = 10;  // Full HD
+else if (resolution <= 2160) renderFPS = 4;   // 4K (2160p)
+else if (resolution <= 4320) renderFPS = 2;   // 8K (4320p)
+else renderFPS = 1.5;                         // Anything above 8K
+
+const totalFrames = lengthInSeconds * 30; // assuming 30fps video input
+const estimatedProcessingTime = ((totalFrames / renderFPS) * 1.15) / 60; // in minutes
+
+    // ✅ Save video metadata
+    const savedVideo = await Video.create({
       user: user._id,
       originalFileName,
       b2Url: signedUrl,
@@ -102,9 +130,12 @@ export const saveR2Metadata = async (req, res) => {
       conversionFormat,
       quality,
       creditsUsed,
-      progress: 0, 
+      threeDExperience: formattedExperience,
+      progress: 0,
+      estimatedProcessingTime, // ✅ stored in backend
     });
 
+    // ✅ Send confirmation email
     const emailHtml = generateEmailTemplate({
       firstName: user.firstName || 'there',
       subject: '🎉 Your Video Upload was Successful!',
@@ -128,6 +159,7 @@ export const saveR2Metadata = async (req, res) => {
       success: true,
       videoId: savedVideo._id,
       videoUrl: signedUrl,
+      estimatedProcessingTime, // optional: return for frontend display
     });
   } catch (err) {
     console.error('❌ Metadata error:', err);
@@ -135,7 +167,29 @@ export const saveR2Metadata = async (req, res) => {
   }
 };
 
+export const getVideoQualities = async (req, res) => {
+  try {
+    const qualities = await Video.distinct('quality'); // only unique values
 
+    if (!qualities || qualities.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No video qualities found',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      qualities,
+    });
+  } catch (error) {
+    console.error('❌ Error fetching video qualities:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error fetching video qualities',
+    });
+  }
+};
 
 export const updateVideoStatusOrCompletion = async (req, res) => {
  
@@ -154,11 +208,13 @@ const { videoId, plainUrl, status, progress, errorMessage, creditsUsed, quality 
 
     const video = await Video.findById(videoId).populate("user");
     if (!video) return res.status(404).json({ error: "Video not found" });
-
 // Update status or progress (e.g. "processing", "65%")
 if (status && (!plainUrl || status !== "completed")) {
+  if (status === "processing" && !video.startedAt) {
+    video.startedAt = new Date(); // only set once
+  }
   video.status = status;
-
+  
   if (progress !== undefined) {
     video.progress = progress;
   }
@@ -182,6 +238,7 @@ if (status && (!plainUrl || status !== "completed")) {
     errorMessage: video.errorMessage,
     creditsUsed: video.creditsUsed,
     quality: video.quality,
+    startedAt: video.startedAt,
   });
 
   return res.status(200).json({

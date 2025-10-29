@@ -10,6 +10,10 @@
     {
       "path": "/api/coupons/expire",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/blogs/publish-scheduled",
+      "schedule": "0 0 * * *"
     }
   ]
 }
