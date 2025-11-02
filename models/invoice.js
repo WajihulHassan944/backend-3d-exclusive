@@ -30,7 +30,7 @@ method: { type: String, default: "" },
 
   total: { type: Number, required: true },  // amount + VAT
   currency: { type: String, default: 'EUR' },
-
+actualCurrency: { type: String, default: 'eur' },
   stripePaymentId: String,
 priceBeforeDiscount: { type: Number, default: null }, // original subtotal before coupon
 discountAmount: {type: Number, default: null},

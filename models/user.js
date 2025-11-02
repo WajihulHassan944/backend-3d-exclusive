@@ -23,6 +23,11 @@ const schema = new mongoose.Schema({
     type: String,
     select: false,
   },
+    lastLogin: {
+    type: Date,
+    default: null,
+  },
+
   hasFreeConversion: {
   type: Boolean,
   default: true, // one-time gift on registration
@@ -42,7 +47,7 @@ newsletterOptIn: {
 },
   role: {
     type: [String],
-    enum: ["user", "admin"],
+    enum: ["user", "admin", "moderator"],
     default: ["user"],
   },
   verified: {

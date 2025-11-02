@@ -450,7 +450,7 @@ priceBeforeDiscount: req.body.priceBeforeDiscount,
       vatNote,
       discountAmount,
      currency: currencySymbol || "EUR",
-
+actualCurrency: req.body.actualCurrency || stripeCurrency || "eur", 
      stripePaymentId: stripePaymentDetails.id,
 
       billingInfo: {

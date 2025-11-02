@@ -109,6 +109,8 @@ export const appleAuth = async (req, res, next) => {
           `https://frontend-3d-exclusive.vercel.app/login?error=AccountNotVerified`
         );
       }
+user.lastLogin = new Date();
+    await user.save({ validateBeforeSave: false });
 
       // Set cookie before redirect
       return sendCookie(
@@ -276,6 +278,8 @@ export const googleLogin = async (req, res, next) => {
     if (!user.verified) {
       return next(new ErrorHandler("Account is not verified.", 403));
     }
+user.lastLogin = new Date();
+    await user.save({ validateBeforeSave: false });
 
     sendCookie(user, res, `Welcome back, ${user.firstName}`, 200, {
       user: {
@@ -383,7 +387,8 @@ export const login = async (req, res, next) => {
     if (!isMatch) {
       return next(new ErrorHandler("Invalid Email or Password", 400));
     }
-
+    user.lastLogin = new Date();
+    await user.save({ validateBeforeSave: false });
 
     const cleanedUser = {
       _id: user._id,
@@ -428,7 +433,9 @@ export const register = async (req, res, next) => {
       password,
       country,
       subscribeNewsletter,
-    } = req.body;
+       role,            
+  addedByAdmin,      
+} = req.body;
     const existingUser = await User.findOne({ email });
 
     
@@ -466,6 +473,8 @@ export const register = async (req, res, next) => {
       country,
       profileUrl,
        newsletterOptIn: subscribeNewsletter === 'true',
+        ...(role ? { role: [role] } : {}), // ✅ use provided role if any
+         ...(addedByAdmin ? { verified: true } : {}),
     };
 
    
@@ -513,9 +522,32 @@ if (subscribeNewsletter === 'true') {
     });
 
 
+if (addedByAdmin) {
+  await transporter.sendMail({
+    from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+    to: email,
+    subject: "You’ve been added to Xclusive 3D",
+    html: generateEmailTemplate({
+      firstName,
+      subject: "You’ve been added to Xclusive 3D",
+      content: `
+        <p style="margin-bottom:16px;">Hello ${firstName},</p>
+        <p style="margin-bottom:16px;">An admin has created an account for you on <strong>Xclusive 3D</strong>.</p>
+        <p style="margin-bottom:16px;">You can now log in using the following credentials:</p>
+        <ul style="margin-bottom:16px; line-height:1.6;">
+          <li><strong>Email:</strong> ${email}</li>
+          <li><strong>Password:</strong> ${password}</li>
+        </ul>
+        <p style="margin-bottom:16px;">We recommend changing your password after your first login for security purposes.</p>
+        <p style="font-size:14px; color:#666;">If this was unexpected, please contact our support.</p>
+      `,
+    }),
+  });
+} else {
 
 
    if (user) {
+
   
   const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "1d" });
   const verificationLink = `https://backend-3d-exclusive.vercel.app/api/users/verify-email?token=${token}`;
@@ -543,7 +575,7 @@ await transporter.sendMail({
 
 }
 
-
+}
     res.status(201).json({
       success: true,
       message: "Registration successful. Please verify your email.",
@@ -816,12 +848,14 @@ export const resetPasswordConfirm = async (req, res, next) => {
 
 export const updateProfile = async (req, res, next) => {
   try {
+    console.log(req.body);
     const {
       userId,
       firstName,
       lastName,
       email,
       country,
+      role, // ✅ receive role
     } = req.body;
 
     if (!userId) {
@@ -833,11 +867,21 @@ export const updateProfile = async (req, res, next) => {
 
     // Dynamically update only provided fields
     if (firstName) user.firstName = firstName;
-    if (lastName) user.lastName = lastName;
+    user.lastName = lastName;
     if (email) user.email = email;
     if (country) user.country = country;
+if (role) {
+  // Ensure user.role is always an array
+  if (!Array.isArray(user.role)) {
+    user.role = [user.role];
+  }
 
-   
+  // Push only if not already included
+  if (!user.role.includes(role)) {
+    user.role.push(role);
+  }
+}
+
     // Handle image upload if file provided
     if (req.file) {
       if (user.profileUrl && user.profileUrl.includes("cloudinary.com")) {
@@ -1142,5 +1186,66 @@ export const promoteAdmins = async (req, res) => {
       success: false,
       error: "Internal server error",
     });
+  }
+};
+
+
+
+
+export const getUserStats = async (req, res, next) => {
+  try {
+    const totalUsers = await User.countDocuments();
+    const activeUsers = await User.countDocuments({ verified: true });
+    const inactiveUsers = totalUsers - activeUsers;
+    const administrators = await User.countDocuments({ role: { $in: ["admin"] } });
+    res.status(200).json({
+      success: true,
+      stats: {
+        totalUsers,
+        activeUsers,
+        inactiveUsers,
+        administrators,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+
+
+
+
+export const getAllUsersDetailed = async (req, res, next) => {
+  try {
+    const users = await User.find().sort({ createdAt: -1 });
+
+    // Fetch all wallets at once and map them by userId for quick lookup
+    const wallets = await Wallet.find();
+    const walletMap = new Map(wallets.map(w => [w.userId.toString(), w]));
+
+    const userDetails = users.map(user => {
+      const wallet = walletMap.get(user._id.toString());
+
+      return {
+        id: user._id,
+        name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
+        email: user.email,
+        role: user.role,
+        status: user.verified ? "active" : "inactive",
+        credits: wallet ? wallet.balance : 0,
+        lastLogin: user.lastLogin
+          ? user.lastLogin.toISOString().replace("T", " ").substring(0, 16)
+          : "Never",
+        emailVerified: user.verified ? "Verified" : "Not Verified",
+      };
+    });
+
+    res.status(200).json({
+      success: true,
+      users: userDetails,
+    });
+  } catch (error) {
+    next(error);
   }
 };
