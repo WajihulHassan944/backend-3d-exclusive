@@ -433,10 +433,31 @@ export const getConversionDashboard = async (req, res) => {
         inv.credits?.reduce((sum, c) => sum + (c.credits || 0), 0) || 0;
 
       // Date/time handling
-      const issuedAt = inv.issuedAt || inv.createdAt;
-      const timeAgo = issuedAt
-        ? Math.floor((Date.now() - new Date(issuedAt).getTime()) / 60000) + " min ago"
-        : "-";
+     // Date/time handling
+const issuedAt = inv.issuedAt || inv.createdAt;
+let timeAgo = "-";
+
+if (issuedAt) {
+  const diffMs = Date.now() - new Date(issuedAt).getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+
+  if (diffMins < 60) {
+    timeAgo = `${diffMins} min ago`;
+  } else if (diffMins < 1440) {
+    const hours = Math.floor(diffMins / 60);
+    timeAgo = `${hours} hour${hours > 1 ? "s" : ""} ago`;
+  } else if (diffMins < 43200) { // < 30 days
+    const days = Math.floor(diffMins / 1440);
+    timeAgo = `${days} day${days > 1 ? "s" : ""} ago`;
+  } else if (diffMins < 525600) { // < 12 months
+    const months = Math.floor(diffMins / 43200);
+    timeAgo = `${months} month${months > 1 ? "s" : ""} ago`;
+  } else {
+    const years = Math.floor(diffMins / 525600);
+    timeAgo = `${years} year${years > 1 ? "s" : ""} ago`;
+  }
+}
+
 
       return {
         _id: inv._id,
@@ -457,7 +478,7 @@ export const getConversionDashboard = async (req, res) => {
         notes: inv.notes || "",
         timeAgo,
       };
-    });
+    }).reverse();
 
     // 3️⃣ Final response
     return res.status(200).json({

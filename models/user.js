@@ -59,5 +59,22 @@ newsletterOptIn: {
     default: Date.now,
   },
   
+  address: {
+    street: { type: String },
+    city: { type: String },
+    postalCode: { type: String },
+    country: { type: String },
+  },
+
+  companyName: { type: String },
+  vatNumber: { type: String },
+
+  status: {
+    type: String,
+    enum: ["active", "inactive", "suspended"],
+    default: "active",
+  },
+
+  
 });
 export const User = mongoose.model("User", schema);

@@ -109,6 +109,12 @@ export const appleAuth = async (req, res, next) => {
           `https://frontend-3d-exclusive.vercel.app/login?error=AccountNotVerified`
         );
       }
+       // ✅ Check if user status is active
+      if (user.status !== "active") {
+        return res.redirect(
+          `https://frontend-3d-exclusive.vercel.app/login?error=Account${user.status.charAt(0).toUpperCase() + user.status.slice(1)}`
+        );
+      }
 user.lastLogin = new Date();
     await user.save({ validateBeforeSave: false });
 
@@ -261,7 +267,6 @@ export const googleRegister = async (req, res, next) => {
     next(new ErrorHandler("Google Registration Failed", 500));
   }
 };
-
 export const googleLogin = async (req, res, next) => {
   const { token } = req.body;
 
@@ -278,7 +283,12 @@ export const googleLogin = async (req, res, next) => {
     if (!user.verified) {
       return next(new ErrorHandler("Account is not verified.", 403));
     }
-user.lastLogin = new Date();
+
+    if (user.status !== "active") {
+      return next(new ErrorHandler(`Account is currently ${user.status}. Please contact support.`, 403));
+    }
+
+    user.lastLogin = new Date();
     await user.save({ validateBeforeSave: false });
 
     sendCookie(user, res, `Welcome back, ${user.firstName}`, 200, {
@@ -300,7 +310,6 @@ user.lastLogin = new Date();
     next(new ErrorHandler("Google Login Failed", 500));
   }
 };
-
 
 
 export const deleteUserById = async (req, res, next) => {
@@ -363,7 +372,6 @@ export const deleteUserById = async (req, res, next) => {
     next(error);
   }
 };
-
 export const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
@@ -374,11 +382,19 @@ export const login = async (req, res, next) => {
       return next(new ErrorHandler("Invalid Email or Password", 400));
     }
 
-    // Check if user is not verified
+    // Check if user is verified
     if (!user.verified) {
       return res.status(403).json({
         success: false,
         message: "Account not verified.",
+      });
+    }
+
+    // ✅ Check if user account is active
+    if (user.status !== "active") {
+      return res.status(403).json({
+        success: false,
+        message: `Account is currently ${user.status}. Please contact support.`,
       });
     }
 
@@ -387,6 +403,7 @@ export const login = async (req, res, next) => {
     if (!isMatch) {
       return next(new ErrorHandler("Invalid Email or Password", 400));
     }
+
     user.lastLogin = new Date();
     await user.save({ validateBeforeSave: false });
 
@@ -408,6 +425,7 @@ export const login = async (req, res, next) => {
     next(error);
   }
 };
+
 
 export const getAllUsers = async (req, res, next) => {
   try {
@@ -845,17 +863,20 @@ export const resetPasswordConfirm = async (req, res, next) => {
     next(error);
   }
 };
-
 export const updateProfile = async (req, res, next) => {
+  console.log(req.body);
   try {
-    console.log(req.body);
     const {
       userId,
       firstName,
       lastName,
       email,
       country,
-      role, // ✅ receive role
+      role,
+      address,
+      companyName,
+      vatNumber,
+      status,
     } = req.body;
 
     if (!userId) {
@@ -865,24 +886,35 @@ export const updateProfile = async (req, res, next) => {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Dynamically update only provided fields
+    // ✅ Dynamically update only provided fields
     if (firstName) user.firstName = firstName;
-    user.lastName = lastName;
+    if (lastName !== undefined) user.lastName = lastName;
     if (email) user.email = email;
     if (country) user.country = country;
-if (role) {
-  // Ensure user.role is always an array
-  if (!Array.isArray(user.role)) {
-    user.role = [user.role];
-  }
 
-  // Push only if not already included
-  if (!user.role.includes(role)) {
-    user.role.push(role);
-  }
+    // ✅ Address info
+    if (address) {
+      user.address = {
+        street: address.street || user.address?.street,
+        city: address.city || user.address?.city,
+        postalCode: address.postalCode || user.address?.postalCode,
+        country: address.country || user.address?.country,
+      };
+    }
+
+    // ✅ Business info
+    if (companyName) user.companyName = companyName;
+    if (vatNumber) user.vatNumber = vatNumber;
+
+    // ✅ Status update (active/inactive/suspended)
+    if (status) user.status = status;
+
+    // ✅ Role handling
+ if (role) {
+  user.role = Array.isArray(role) ? role : [role];
 }
 
-    // Handle image upload if file provided
+    // ✅ Handle image upload if file provided
     if (req.file) {
       if (user.profileUrl && user.profileUrl.includes("cloudinary.com")) {
         const publicId = user.profileUrl.split("/").pop().split(".")[0];
@@ -893,8 +925,8 @@ if (role) {
         new Promise((resolve, reject) => {
           const stream = cloudinary.uploader.upload_stream(
             {
-              folder: 'user_profiles',
-              resource_type: 'image',
+              folder: "user_profiles",
+              resource_type: "image",
             },
             (error, result) => {
               if (result) resolve(result);
@@ -915,9 +947,8 @@ if (role) {
       message: "Profile updated successfully",
       user,
     });
-
   } catch (error) {
-    console.error('Update error:', error);
+    console.error("Update error:", error);
     next(error);
   }
 };
@@ -1218,13 +1249,15 @@ export const getUserStats = async (req, res, next) => {
 
 export const getAllUsersDetailed = async (req, res, next) => {
   try {
+    // ✅ Fetch all users sorted by newest first
     const users = await User.find().sort({ createdAt: -1 });
 
-    // Fetch all wallets at once and map them by userId for quick lookup
+    // ✅ Fetch all wallets once for performance
     const wallets = await Wallet.find();
-    const walletMap = new Map(wallets.map(w => [w.userId.toString(), w]));
+    const walletMap = new Map(wallets.map((w) => [w.userId.toString(), w]));
 
-    const userDetails = users.map(user => {
+    // ✅ Merge user + wallet data
+    const userDetails = users.map((user) => {
       const wallet = walletMap.get(user._id.toString());
 
       return {
@@ -1232,12 +1265,37 @@ export const getAllUsersDetailed = async (req, res, next) => {
         name: `${user.firstName || ""} ${user.lastName || ""}`.trim(),
         email: user.email,
         role: user.role,
-        status: user.verified ? "active" : "inactive",
+        profileUrl: user.profileUrl || null,
+
+        // ✅ Address info
+        address: {
+          street: user.address?.street || "",
+          city: user.address?.city || "",
+          postalCode: user.address?.postalCode || "",
+          country: user.address?.country || "",
+        },
+
+        // ✅ Business info
+        companyName: user.companyName || "",
+        vatNumber: user.vatNumber || "",
+
+        // ✅ Account status (uses your enum)
+        status: user.status || "active",
+        emailVerified: user.verified ? "Verified" : "Not Verified",
+
+        // ✅ Wallet balance & activity
         credits: wallet ? wallet.balance : 0,
         lastLogin: user.lastLogin
           ? user.lastLogin.toISOString().replace("T", " ").substring(0, 16)
           : "Never",
-        emailVerified: user.verified ? "Verified" : "Not Verified",
+
+        // ✅ Timestamps
+        createdAt: user.createdAt
+          ? user.createdAt.toISOString().replace("T", " ").substring(0, 16)
+          : null,
+        updatedAt: user.updatedAt
+          ? user.updatedAt.toISOString().replace("T", " ").substring(0, 16)
+          : null,
       };
     });
 
@@ -1246,6 +1304,46 @@ export const getAllUsersDetailed = async (req, res, next) => {
       users: userDetails,
     });
   } catch (error) {
+    console.error("Error fetching users:", error);
     next(error);
+  }
+};
+
+
+
+
+
+
+export const updateUserPassword = async (req, res) => {
+  try {
+    console.log(req.body);
+    const { userId, newPassword } = req.body;
+
+    if (!userId || !newPassword) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Missing userId or newPassword." });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found." });
+    }
+
+    // ✅ Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 12);
+    user.password = hashedPassword;
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Password updated successfully.",
+    });
+  } catch (error) {
+    console.error("Password update error:", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Internal server error." });
   }
 };
