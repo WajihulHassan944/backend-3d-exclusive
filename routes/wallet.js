@@ -28,4 +28,6 @@ router.delete("/customer/delete", deleteCustomer);
 router.put("/orders/manual-order/:id", updateManualOrder);
 router.get("/getInvoiceById/:id", getInvoiceById);
 router.post("/cancelOrder/:id", cancelOrder);
+
+
 export default router;

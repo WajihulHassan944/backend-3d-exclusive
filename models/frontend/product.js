@@ -33,7 +33,6 @@ const productSchema = new mongoose.Schema({
   },
   priceEUR: {
     type: Number,
-    required: true,
   },
   originalPriceEUR: {
     type: Number,

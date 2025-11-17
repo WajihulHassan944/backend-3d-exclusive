@@ -465,6 +465,38 @@ actualCurrency: req.body.actualCurrency || stripeCurrency || "eur",
       },
     });
 
+
+// 💌 After invoice creation, send review invitation email
+try {
+  const emailHtml = generateEmailTemplate({
+    firstName: user.firstName || "there",
+    subject: "We’d love your feedback!",
+    content: `
+      <p style="color:#fff;">Hi ${user.firstName || "there"},</p>
+      <p style="color:#fff;">Thank you for your recent purchase (Invoice <strong>${invoiceNumber}</strong>).</p>
+      <p style="color:#fff;">We’d really appreciate it if you could take a moment to share your experience.</p>
+      <a href="https://frontend-3d-exclusive.vercel.app/write-review" 
+         style="display:inline-block;margin-top:10px;background-color:#ff8c2f;color:#fff;padding:10px 20px;
+                text-decoration:none;border-radius:8px;font-weight:bold;">
+        Write a Review
+      </a>
+      <p style="color:#fff;margin-top:15px;">Your feedback helps us improve and serve you better!</p>
+    `,
+  });
+
+  await transporter.sendMail({
+    from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+    to: user.email,
+    subject: "We’d love your feedback! – Xclusive 3D",
+    html: emailHtml,
+  });
+
+  console.log("✅ Review invitation email sent to:", user.email);
+} catch (err) {
+  console.error("❌ Failed to send review invitation email:", err);
+}
+
+
     return res.status(200).json({
       success: true,
       message: "Funds added successfully to wallet.",
@@ -1535,3 +1567,5 @@ return res.status(200).json(responsePayload);
     next(new ErrorHandler(error.message || "Failed to cancel order.", 500));
   }
 };
+
+

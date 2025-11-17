@@ -177,36 +177,121 @@ export const deleteMultipleMedia = async (req, res) => {
 };
 
 
+
 export const updateMedia = async (req, res) => {
   try {
     const { id } = req.params;
+
+    // Input fields
     const {
       url,
       type,
       size,
       dimensions,
       name,
+      alt,
       tags,
       platform,
       uploadDate,
+    
     } = req.body;
 
-    const updatedFields = {
-      ...(url && { url }),
-      ...(type && { type }),
-      ...(size && { size }),
-      ...(dimensions && { dimensions }),
-      ...(name && { name }),
-      ...(platform && { platform }),
-      ...(uploadDate && { uploadDate }),
-      ...(tags && {
-        tags: Array.isArray(tags)
-          ? tags
-          : typeof tags === "string"
-          ? tags.split(",").map((t) => t.trim())
-          : [],
-      }),
-    };
+    let updatedFields = {};
+
+    // ---------------------------
+    // 1️⃣ FILE REPLACEMENT SUPPORT
+    // ---------------------------
+
+    if (req.file) {
+      const bufferStream = streamifier.createReadStream(req.file.buffer);
+
+      const uploadResult = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          {
+            folder: "website_media",
+            resource_type: "auto",
+          },
+          (error, result) => {
+            if (result) resolve(result);
+            else reject(error);
+          }
+        );
+        bufferStream.pipe(stream);
+      });
+
+      updatedFields.url = uploadResult.secure_url;
+      updatedFields.type = uploadResult.resource_type === "video" ? "video" : "image";
+      updatedFields.size = `${(req.file.size / (1024 * 1024)).toFixed(2)} MB`;
+      updatedFields.dimensions = uploadResult.width && uploadResult.height 
+        ? `${uploadResult.width}x${uploadResult.height}` 
+        : null;
+      updatedFields.name = req.file.originalname;
+    }
+
+    // ---------------------------
+    // 2️⃣ EXTERNAL MEDIA (YouTube/Vimeo)
+    // ---------------------------
+
+    if (type === "external") {
+      updatedFields.url = url;
+      updatedFields.type = "external";
+      updatedFields.platform = platform?.toLowerCase() || null;
+    }
+
+    // ---------------------------
+    // 3️⃣ UPDATE NORMAL FIELDS
+    // ---------------------------
+
+    if (!req.file && type && type !== "external") updatedFields.type = type;
+    if (size) updatedFields.size = size;
+    if (dimensions) updatedFields.dimensions = dimensions;
+    if (name) updatedFields.name = name;
+    if (alt) updatedFields.alt = alt;
+    if (uploadDate) updatedFields.uploadDate = uploadDate;
+
+    // Tags
+    if (tags) {
+      updatedFields.tags = Array.isArray(tags)
+        ? tags
+        : tags.split(",").map((t) => t.trim());
+    }
+
+// ---------------------------
+// 4️⃣ TRANSFORMATION SETTINGS (UPDATED FOR NEW editImage FIELDS)
+// ---------------------------
+
+let transformations = {};
+
+if (req.body.transformations) {
+  try {
+    transformations = JSON.parse(req.body.transformations);
+  } catch (err) {
+    transformations = req.body.transformations;
+  }
+}
+
+updatedFields.transformations = {
+  cropWidth: transformations.cropWidth ?? null,
+  cropHeight: transformations.cropHeight ?? null,
+  aspectRatio: transformations.aspectRatio ?? "free",
+
+  resizeWidth: transformations.resizeWidth ?? null,
+  resizeHeight: transformations.resizeHeight ?? null,
+  keepAspect: transformations.keepAspect ?? true,
+
+  rotate: transformations.rotate ?? 0,
+
+  filter: transformations.filter ?? "",
+  filterIntensity: transformations.filterIntensity ?? 100,
+
+  quality: transformations.quality ?? "original",
+  format: transformations.format ?? "original",
+};
+
+
+    // ---------------------------
+    // 5️⃣ UPDATE DOCUMENT
+    // ---------------------------
 
     const updatedMedia = await Media.findByIdAndUpdate(id, updatedFields, {
       new: true,
@@ -219,11 +304,12 @@ export const updateMedia = async (req, res) => {
       });
     }
 
-    return res.status(200).json({
+    return res.json({
       success: true,
       message: "Media updated successfully",
       media: updatedMedia,
     });
+
   } catch (error) {
     console.error("Error updating media:", error);
     return res.status(500).json({

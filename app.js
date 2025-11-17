@@ -12,6 +12,7 @@ import cookieParser from "cookie-parser";
 import { errorMiddleware } from "./middlewares/error.js";
 import liveVisitorsRouter from "./routes/liveVisitors.js";
 import mediaRouter from "./routes/frontend/media.js";
+import reviewsRouter from "./routes/frontend/reviews.js";
 import cors from "cors";
 
 export const app = express();
@@ -42,6 +43,7 @@ app.use('/api/blogs', blogsRouter);
 app.use('/api/products', productRouter);
 app.use('/api/pages', pagesRouter);
 app.use("/api/live-visitors", liveVisitorsRouter);
+app.use("/api/reviews", reviewsRouter);
 app.use("/api/media", mediaRouter);
 
 app.get("/", (req, res) => {
