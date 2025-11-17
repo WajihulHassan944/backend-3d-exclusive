@@ -89,28 +89,68 @@ export const getAllMedia = async (req, res) => {
     });
   }
 };
+const getCloudinaryPublicId = (url) => {
+  if (!url) {
+    return null;
+  }
 
+  const parts = url.split("/upload/");
+  if (parts.length < 2) {
+    return null;
+  }
 
-// ✅ Delete Media
+  const afterUpload = parts[1]; 
+  
+  // Remove version number v123455/
+  const withoutVersion = afterUpload.replace(/^v[0-9]+\//, "");
+  
+  // Remove file extension
+  const dotIndex = withoutVersion.lastIndexOf(".");
+  if (dotIndex === -1) {
+    return null;
+  }
+
+  const publicId = withoutVersion.substring(0, dotIndex);
+  
+  return publicId;
+};
 export const deleteMedia = async (req, res) => {
   try {
+  
     const { id } = req.params;
 
-    const deletedMedia = await Media.findByIdAndDelete(id);
-
-    if (!deletedMedia) {
+    const mediaItem = await Media.findById(id);
+  
+    if (!mediaItem) {
       return res.status(404).json({
         success: false,
         message: "Media not found",
       });
     }
 
+    // Extract publicId from the URL
+    const publicId = getCloudinaryPublicId(mediaItem.url);
+  
+    // Delete from Cloudinary
+    if (publicId) {
+      try {
+        const cloudResp = await cloudinary.uploader.destroy(publicId);
+      } catch (err) {
+        console.error("⛔ Cloudinary delete failed:", err);
+      }
+    } else {
+    }
+
+    // Delete from MongoDB
+    await Media.findByIdAndDelete(id);
+
+  
     return res.status(200).json({
       success: true,
       message: "Media deleted successfully",
     });
   } catch (error) {
-    console.error("Error deleting media:", error);
+    console.error("⛔ Error deleting media:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to delete media",
@@ -120,8 +160,6 @@ export const deleteMedia = async (req, res) => {
 };
 
 
-
-// DELETE multiple media (by IDs)
 export const deleteMultipleMedia = async (req, res) => {
   try {
     const { ids } = req.body;
@@ -133,7 +171,6 @@ export const deleteMultipleMedia = async (req, res) => {
       });
     }
 
-    // Find all media records that match the given IDs
     const mediaItems = await Media.find({ _id: { $in: ids } });
 
     if (mediaItems.length === 0) {
@@ -143,22 +180,20 @@ export const deleteMultipleMedia = async (req, res) => {
       });
     }
 
-    // Delete files from Cloudinary
     const deleteResults = await Promise.all(
       mediaItems.map(async (item) => {
         try {
-          if (item.cloudinaryPublicId) {
-            await cloudinary.uploader.destroy(item.cloudinaryPublicId);
+          const publicId = getCloudinaryPublicId(item.url);
+          if (publicId) {
+            await cloudinary.uploader.destroy(publicId);
           }
           return { id: item._id, success: true };
         } catch (err) {
-          console.error(`Failed to delete Cloudinary file for ${item._id}:`, err);
           return { id: item._id, success: false, error: err.message };
         }
       })
     );
 
-    // Delete from MongoDB
     await Media.deleteMany({ _id: { $in: ids } });
 
     return res.status(200).json({
@@ -167,7 +202,6 @@ export const deleteMultipleMedia = async (req, res) => {
       results: deleteResults,
     });
   } catch (error) {
-    console.error("Error deleting multiple media:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to delete media",
