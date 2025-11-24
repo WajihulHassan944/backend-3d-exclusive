@@ -1,5 +1,6 @@
 // controllers/liveVisitorsController.js
 import { Video } from "../models/b2Upload.js";
+import page from "../models/frontend/page.js";
 import { Invoice } from "../models/invoice.js";
 import { pusher } from "../utils/pusher.js";
 
@@ -9,15 +10,31 @@ let liveVisitors = 0;
 export const userConnected = async (req, res) => {
   try {
     liveVisitors++;
+
+    // ✅ Get isComingSoon from ANY page (since you update all pages at once)
+    const anyPage = await page.findOne().select("isComingSoon");
+    const isComingSoon = anyPage?.isComingSoon ?? false;
+
+    // 🔥 Push live update
     await pusher.trigger("exclusive", "live-visitors-update", {
       count: liveVisitors,
+      isComingSoon, // include in event too
     });
-    return res.status(200).json({ success: true, count: liveVisitors });
+
+    return res.status(200).json({
+      success: true,
+      count: liveVisitors,
+      isComingSoon,
+    });
   } catch (error) {
     console.error("Pusher liveVisitors error:", error);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({
+      success: false,
+      error: error.message,
+    });
   }
 };
+
 
 // called when user disconnects (frontend triggers on unload/leave)
 export const userDisconnected = async (req, res) => {

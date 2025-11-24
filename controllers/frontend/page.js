@@ -417,3 +417,60 @@ export const getHomeSeo = async (req, res) => {
     });
   }
 };
+
+
+
+// ✅ Toggle isComingSoon for ALL pages
+export const toggleComingSoon = async (req, res) => {
+  try {
+    const { isComingSoon } = req.body;
+
+    if (typeof isComingSoon !== "boolean") {
+      return res.status(400).json({
+        success: false,
+        message: "isComingSoon must be a boolean",
+      });
+    }
+
+    // Update all pages
+    await page.updateMany({}, { isComingSoon });
+
+    return res.status(200).json({
+      success: true,
+      message: `isComingSoon updated to ${isComingSoon} for all pages`,
+    });
+  } catch (error) {
+    console.error("Error updating coming soon:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update coming soon",
+      error: error.message,
+    });
+  }
+};
+
+
+export const getComingSoonStatus = async (req, res) => {
+  try {
+    const anyPage = await page.findOne().select("isComingSoon");
+
+    if (!anyPage) {
+      return res.status(404).json({
+        success: false,
+        message: "No pages found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      isComingSoon: anyPage.isComingSoon,
+    });
+  } catch (error) {
+    console.error("Error fetching ComingSoon state:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch Coming Soon state",
+      error: error.message,
+    });
+  }
+};

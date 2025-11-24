@@ -103,6 +103,11 @@ const pageSchema = new mongoose.Schema(
   type: Number,
   default: 0,
 },
+isComingSoon: {
+  type: Boolean,
+  default: false,
+},
+
     seo: seoSchema,
     sections: [sectionSchema],
   },
