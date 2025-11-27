@@ -106,13 +106,13 @@ export const appleAuth = async (req, res, next) => {
     if (user) {
       if (!user.verified) {
         return res.redirect(
-          `https://frontend-3d-exclusive.vercel.app/login?error=AccountNotVerified`
+          `https://www.xclusive3d.com/login?error=AccountNotVerified`
         );
       }
        // ✅ Check if user status is active
       if (user.status !== "active") {
         return res.redirect(
-          `https://frontend-3d-exclusive.vercel.app/login?error=Account${user.status.charAt(0).toUpperCase() + user.status.slice(1)}`
+          `https://www.xclusive3d.com/login?error=Account${user.status.charAt(0).toUpperCase() + user.status.slice(1)}`
         );
       }
 user.lastLogin = new Date();
@@ -125,7 +125,7 @@ user.lastLogin = new Date();
   `Welcome back, ${user.firstName}`,
   200,
   {},
-  "https://frontend-3d-exclusive.vercel.app/upload?login=success"
+  "https://www.xclusive3d.com/upload?login=success"
 );
     }
 
@@ -171,12 +171,12 @@ user.lastLogin = new Date();
   `Welcome ${user.firstName}`,
   201,
   {},
-  "https://frontend-3d-exclusive.vercel.app/upload?signup=success"
+  "https://www.xclusive3d.com/upload?signup=success"
 );
   } catch (error) {
     console.error("Apple Auth Error:", error);
     return res.redirect(
-      `https://frontend-3d-exclusive.vercel.app/login?error=AppleAuthFailed`
+      `https://www.xclusive3d.com/login?error=AppleAuthFailed`
     );
   }
 };
@@ -625,16 +625,16 @@ export const verifyEmail = async (req, res, next) => {
     if (!user) return next(new ErrorHandler("Invalid or expired verification link", 400));
 
     if (user.verified) {
-      return res.redirect("https://frontend-3d-exclusive.vercel.app/status?verified=already");
+      return res.redirect("https://www.xclusive3d.com/status?verified=already");
     }
 
     user.verified = true;
     await user.save();
 
-    res.redirect("https://frontend-3d-exclusive.vercel.app/status?verified=success");
+    res.redirect("https://www.xclusive3d.com/status?verified=success");
   } catch (error) {
     console.error(error);
-    res.redirect("https://frontend-3d-exclusive.vercel.app/status?verified=fail");
+    res.redirect("https://www.xclusive3d.com/status?verified=fail");
   }
 };
 
@@ -796,7 +796,7 @@ export const resetPasswordRequestEmail = async (req, res, next) => {
       expiresIn: "1h",
     });
 
-    const resetLink = `https://frontend-3d-exclusive.vercel.app/reset-password?token=${resetToken}`;
+    const resetLink = `https://www.xclusive3d.com/reset-password?token=${resetToken}`;
 
     // 3. Compose email using your branded template
     const resetHtml = generateEmailTemplate({
@@ -1170,7 +1170,7 @@ export const unsubscribeNewsletter = async (req, res, next) => {
     const { email } = req.query;
 
     if (!email || !validator.isEmail(email)) {
-      return res.redirect('https://frontend-3d-exclusive.vercel.app/newsletter?unsubscribed=failure');
+      return res.redirect('https://www.xclusive3d.com/newsletter?unsubscribed=failure');
     }
 
     const response = await fetch(`https://connect.mailerlite.com/api/subscribers/${email}`, {
@@ -1183,14 +1183,14 @@ export const unsubscribeNewsletter = async (req, res, next) => {
 
     if (!response.ok) {
       console.error('Unsubscribe failed:', await response.json());
-      return res.redirect('https://frontend-3d-exclusive.vercel.app/newsletter?unsubscribed=failure');
+      return res.redirect('https://www.xclusive3d.com/newsletter?unsubscribed=failure');
     }
 
-    return res.redirect('https://frontend-3d-exclusive.vercel.app/newsletter?unsubscribed=success');
+    return res.redirect('https://www.xclusive3d.com/newsletter?unsubscribed=success');
 
   } catch (error) {
     console.error('Unsubscribe error:', error);
-    return res.redirect('https://frontend-3d-exclusive.vercel.app/newsletter?unsubscribed=failure');
+    return res.redirect('https://www.xclusive3d.com/newsletter?unsubscribed=failure');
   }
 };
 export const promoteAdmins = async (req, res) => {
