@@ -110,12 +110,12 @@ let renderFPS;
 const resolution = parseInt(quality.replace(/\D/g, ''), 10);
 
 // Set FPS dynamically based on resolution range
-if (resolution <= 480) renderFPS = 14;        // SD
-else if (resolution <= 720) renderFPS = 12;   // HD Ready
-else if (resolution <= 1080) renderFPS = 10;  // Full HD
-else if (resolution <= 2160) renderFPS = 4;   // 4K (2160p)
-else if (resolution <= 4320) renderFPS = 2;   // 8K (4320p)
-else renderFPS = 1.5;                         // Anything above 8K
+if (resolution <= 480) renderFPS = 18;         // SD (boosted a bit from 14 → 18)
+else if (resolution <= 720) renderFPS = 14;    // HD Ready (was 12 → now 14)
+else if (resolution <= 1080) renderFPS = 10;   // Full HD (correct as per instruction)
+else if (resolution <= 2160) renderFPS = 4;    // 4K (correct)
+else if (resolution <= 4320) renderFPS = 2;    // 8K (correct)
+else renderFPS = 1;                            // Above 8K → reduced slightly
 
 const totalFrames = lengthInSeconds * 30; // assuming 30fps video input
 const estimatedProcessingTime = ((totalFrames / renderFPS) * 1.15) / 60; // in minutes
