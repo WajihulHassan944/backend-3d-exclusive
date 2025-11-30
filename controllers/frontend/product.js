@@ -68,7 +68,8 @@ export const getAllProducts = async (req, res) => {
   } catch (error) {
     res.status(500).json({ success: false, message: "Server error", error: error.message });
   }
-};export const getProductsByCurrency = async (req, res) => {
+};
+export const getProductsByCurrency = async (req, res) => {
   try {
     const { currency } = req.query;
 
@@ -81,18 +82,30 @@ export const getAllProducts = async (req, res) => {
     }
 
     // Fetch latest exchange rates (base: EUR)
-    const apiUrl =
-      "https://v6.exchangerate-api.com/v6/85b74576b01e8837973975c5/latest/EUR";
+const apiKeys = [
+  "85b74576b01e8837973975c5",
+  "551a0a522ee35a6b81ab564c",
+  "18e51cab9c3d220d0e11fc18",
+];
 
-    const response = await fetch(apiUrl);
-    const data = await response.json();
+let rates = null;
 
-    if (!data || data.result !== "success") {
-      throw new Error("Failed to fetch exchange rates");
-    }
+for (const key of apiKeys) {
+  const response = await fetch(
+    `https://v6.exchangerate-api.com/v6/${key}/latest/EUR`
+  );
+  const data = await response.json();
 
-    const rates = data.conversion_rates;
-    const rate = rates[currency.toUpperCase()];
+  if (data?.result === "success") {
+    rates = data.conversion_rates;
+    break;
+  }
+}
+
+if (!rates) throw new Error("Failed to fetch exchange rates");
+
+const rate = rates[currency.toUpperCase()];
+
 
     if (!rate) {
       return res.status(400).json({
@@ -198,15 +211,31 @@ export const getProductStats = async (req, res) => {
     // 💰 Fetch all invoices
     const invoices = await Invoice.find({});
 
-    // 🌍 Fetch exchange rates (base = EUR)
-    const response = await fetch(
-      "https://v6.exchangerate-api.com/v6/85b74576b01e8837973975c5/latest/EUR"
-    );
-    if (!response.ok) {
-      throw new Error(`Failed to fetch exchange rates: ${response.status}`);
-    }
-    const data = await response.json();
-    const rates = data?.conversion_rates || {};
+   // 🌍 Fetch exchange rates (base = EUR)
+const apiKeys = [
+  "85b74576b01e8837973975c5",
+  "551a0a522ee35a6b81ab564c",
+  "18e51cab9c3d220d0e11fc18",
+];
+
+let rates = null;
+
+for (const key of apiKeys) {
+  const response = await fetch(
+    `https://v6.exchangerate-api.com/v6/${key}/latest/EUR`
+  );
+  const data = await response.json();
+
+  if (data?.result === "success") {
+    rates = data.conversion_rates;
+    break;
+  }
+}
+
+if (!rates) {
+  throw new Error("Failed to fetch exchange rates");
+}
+
 
     // 💶 Convert total revenues to EUR
     let totalRevenue = 0;

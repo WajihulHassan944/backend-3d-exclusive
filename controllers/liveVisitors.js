@@ -79,12 +79,26 @@ export const getAdminStats = async (req, res) => {
       59
     );
 
-    // 🌍 Exchange rate setup (convert everything to EUR)
-    const response = await fetch(
-      "https://v6.exchangerate-api.com/v6/85b74576b01e8837973975c5/latest/EUR"
-    );
-    const data = await response.json();
-    const rates = data?.conversion_rates || {};
+   // 🌍 Exchange rate setup (convert everything to EUR)
+const apiKeys = [
+  "85b74576b01e8837973975c5",
+  "551a0a522ee35a6b81ab564c",
+  "18e51cab9c3d220d0e11fc18",
+];
+
+let rates = {};
+for (const key of apiKeys) {
+  const response = await fetch(
+    `https://v6.exchangerate-api.com/v6/${key}/latest/EUR`
+  );
+  const data = await response.json();
+
+  if (data.result === "success") {
+    rates = data.conversion_rates;
+    break;
+  }
+}
+
 
     // 💰 Total Revenue This Month (only non-manual orders)
     const monthlyInvoices = await Invoice.find({
