@@ -1,5 +1,6 @@
 import Product from "../../models/frontend/product.js";
 import { Invoice } from "../../models/invoice.js";
+import { getRates } from "../../utils/exchangeRateService.js";
 
 /**
  * Helper to generate localized pricing for given credits
@@ -81,29 +82,7 @@ export const getProductsByCurrency = async (req, res) => {
       return res.status(200).json({ success: true, products });
     }
 
-    // Fetch latest exchange rates (base: EUR)
-const apiKeys = [
-  "85b74576b01e8837973975c5",
-  "551a0a522ee35a6b81ab564c",
-  "18e51cab9c3d220d0e11fc18",
-];
-
-let rates = null;
-
-for (const key of apiKeys) {
-  const response = await fetch(
-    `https://v6.exchangerate-api.com/v6/${key}/latest/EUR`
-  );
-  const data = await response.json();
-
-  if (data?.result === "success") {
-    rates = data.conversion_rates;
-    break;
-  }
-}
-
-if (!rates) throw new Error("Failed to fetch exchange rates");
-
+    const rates = await getRates();
 const rate = rates[currency.toUpperCase()];
 
 
@@ -211,32 +190,8 @@ export const getProductStats = async (req, res) => {
     // 💰 Fetch all invoices
     const invoices = await Invoice.find({});
 
-   // 🌍 Fetch exchange rates (base = EUR)
-const apiKeys = [
-  "85b74576b01e8837973975c5",
-  "551a0a522ee35a6b81ab564c",
-  "18e51cab9c3d220d0e11fc18",
-];
-
-let rates = null;
-
-for (const key of apiKeys) {
-  const response = await fetch(
-    `https://v6.exchangerate-api.com/v6/${key}/latest/EUR`
-  );
-  const data = await response.json();
-
-  if (data?.result === "success") {
-    rates = data.conversion_rates;
-    break;
-  }
-}
-
-if (!rates) {
-  throw new Error("Failed to fetch exchange rates");
-}
-
-
+  
+ const rates = await getRates();
     // 💶 Convert total revenues to EUR
     let totalRevenue = 0;
     for (const inv of invoices) {

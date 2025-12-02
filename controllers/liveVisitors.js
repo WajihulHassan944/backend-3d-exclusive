@@ -2,6 +2,7 @@
 import { Video } from "../models/b2Upload.js";
 import page from "../models/frontend/page.js";
 import { Invoice } from "../models/invoice.js";
+import { getRates } from "../utils/exchangeRateService.js";
 import { pusher } from "../utils/pusher.js";
 
 let liveVisitors = 0;
@@ -79,26 +80,7 @@ export const getAdminStats = async (req, res) => {
       59
     );
 
-   // 🌍 Exchange rate setup (convert everything to EUR)
-const apiKeys = [
-  "85b74576b01e8837973975c5",
-  "551a0a522ee35a6b81ab564c",
-  "18e51cab9c3d220d0e11fc18",
-];
-
-let rates = {};
-for (const key of apiKeys) {
-  const response = await fetch(
-    `https://v6.exchangerate-api.com/v6/${key}/latest/EUR`
-  );
-  const data = await response.json();
-
-  if (data.result === "success") {
-    rates = data.conversion_rates;
-    break;
-  }
-}
-
+     const rates = await getRates();
 
     // 💰 Total Revenue This Month (only non-manual orders)
     const monthlyInvoices = await Invoice.find({

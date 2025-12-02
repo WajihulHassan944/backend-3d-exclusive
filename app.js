@@ -13,6 +13,7 @@ import { errorMiddleware } from "./middlewares/error.js";
 import liveVisitorsRouter from "./routes/liveVisitors.js";
 import mediaRouter from "./routes/frontend/media.js";
 import reviewsRouter from "./routes/frontend/reviews.js";
+import "./utils/exchangeRateService.js";
 import cors from "cors";
 
 export const app = express();
