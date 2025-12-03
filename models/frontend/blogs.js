@@ -41,8 +41,13 @@ const blogSchema = new mongoose.Schema(
       trim: true,
     },
     featuredImage: {
-      type: String, // URL for featured image
-    },
+  type: String,
+  trim: true,
+  default: function () {
+    return `/media/${this.slug}`; // placeholder, auto-resolved via virtual
+  },
+},
+
     excerpt: {
       type: String,
       trim: true,
@@ -121,6 +126,14 @@ const blogSchema = new mongoose.Schema(
 blogSchema.pre("save", function (next) {
   this.commentsCount = this.comments.length;
   next();
+});
+
+
+// Auto-resolve featured image from Media collection
+blogSchema.virtual("featuredImageUrl").get(async function () {
+  const Media = mongoose.model("Media");
+  const mediaRecord = await Media.findOne({ identifier: `${this.slug}` });
+  return mediaRecord?.url || this.featuredImage;
 });
 
 export default mongoose.models.Blog || mongoose.model("Blog", blogSchema);

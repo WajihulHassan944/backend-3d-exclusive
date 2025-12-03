@@ -34,7 +34,7 @@ export const uploadMedia = async (req, res) => {
     }
 
     // ✅ Extract metadata
-    const { type, size, dimensions, name, tags } = req.body;
+    const { type, size, dimensions, name, tags, identifier } = req.body;
 
     // ✅ Create new media document
     const newMedia = new Media({
@@ -43,11 +43,13 @@ export const uploadMedia = async (req, res) => {
       size,
       dimensions,
       name,
+      alt:name,
       tags: Array.isArray(tags)
         ? tags
         : typeof tags === "string" && tags.length
         ? tags.split(",").map((t) => t.trim())
         : [],
+        identifier,
       platform,
     });
 
@@ -227,6 +229,7 @@ export const updateMedia = async (req, res) => {
       tags,
       platform,
       uploadDate,
+      identifier
     
     } = req.body;
 
@@ -282,6 +285,7 @@ export const updateMedia = async (req, res) => {
     if (name) updatedFields.name = name;
     if (alt) updatedFields.alt = alt;
     if (uploadDate) updatedFields.uploadDate = uploadDate;
+    if(identifier) updatedFields.identifier = identifier;
 
     // Tags
     if (tags) {

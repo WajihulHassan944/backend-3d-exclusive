@@ -1,4 +1,5 @@
 import Blog from "../../models/frontend/blogs.js";
+import Media from "../../models/frontend/media.js";
 import streamifier from "streamifier";
 import cloudinary from "../../utils/cloudinary.js";
 export const createBlog = async (req, res) => {
@@ -25,6 +26,7 @@ export const createBlog = async (req, res) => {
         "https://frontend-3d-exclusive.vercel.app/blogs/one.jpg";
     }
 
+
     // ✅ Extract data from request body
     const {
       title,
@@ -49,7 +51,19 @@ export const createBlog = async (req, res) => {
         parsedSeo = {}; // fallback to empty
       }
     }
-
+// ✅ Save featured image in Media collection
+const savedMedia = await Media.create({
+  url: featuredImageUrl,
+  identifier: `${slug}`,
+  type: "image",
+  size: `${req.file?.size || 0} bytes`,
+  dimensions: req.file ? `${req.file.width || null}x${req.file.height || null}` : null,
+  name: req.file?.originalname || "blog-image",
+  alt: title,
+  tags: ["blog", slug],
+  platform: null,
+  transformations: {} // default empty — can be edited later
+});
     // ✅ Create new blog document
     const newBlog = new Blog({
       title,
@@ -124,7 +138,35 @@ export const updateBlog = async (req, res) => {
       enableComments,
       seo,
     } = req.body;
+if (req.file) {
+  // ✅ Check if a Media entry for this blog already exists
+  const existingMedia = await Media.findOne({ identifier: existingBlog.slug });
 
+  if (existingMedia) {
+    // Update existing Media
+    existingMedia.url = featuredImageUrl;
+    existingMedia.size = `${req.file?.size || 0} bytes`;
+    existingMedia.dimensions = req.file ? `${req.file.width || null}x${req.file.height || null}` : null;
+    existingMedia.name = req.file?.originalname || "blog-image";
+    existingMedia.alt = title;
+    existingMedia.tags = ["blog", slug];
+    await existingMedia.save();
+  } else {
+    // Create new Media entry if not found
+    await Media.create({
+      url: featuredImageUrl,
+      identifier: `${slug}`,
+      type: "image",
+      size: `${req.file?.size || 0} bytes`,
+      dimensions: req.file ? `${req.file.width || null}x${req.file.height || null}` : null,
+      name: req.file?.originalname || "blog-image",
+      alt: title,
+      tags: ["blog", slug],
+      platform: null,
+      transformations: {}, // default empty — can be edited later
+    });
+  }
+}
     // ✅ Safely parse SEO JSON
     let parsedSeo = seo;
     if (seo && typeof seo === "string") {
@@ -351,6 +393,57 @@ export const publishScheduledBlogs = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to publish scheduled blogs.",
+      error: error.message,
+    });
+  }
+};
+
+
+export const migrateBlogImagesToMedia = async (req, res) => {
+  try {
+    const blogs = await Blog.find({});
+
+    let createdCount = 0;
+    let skippedCount = 0;
+
+    for (const blog of blogs) {
+      const identifier = `${blog.slug}`;
+
+      // Check if media already exists
+      const existingMedia = await Media.findOne({ identifier });
+      if (existingMedia) {
+        skippedCount++;
+        continue;
+      }
+
+      // Create new media record
+      await Media.create({
+        url: blog.featuredImage || "https://frontend-3d-exclusive.vercel.app/blogs/one.jpg",
+        identifier,
+        type: "image",
+        size: null, // could be updated later
+        dimensions: null,
+        name: `blog-${blog.slug}-image`,
+        alt: blog.title,
+        tags: ["blog", blog.slug],
+        platform: null,
+        transformations: {}, // default
+      });
+
+      createdCount++;
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Blog images migrated to Media collection",
+      createdCount,
+      skippedCount,
+    });
+  } catch (error) {
+    console.error("Migration error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to migrate blog images",
       error: error.message,
     });
   }

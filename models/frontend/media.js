@@ -3,7 +3,9 @@ import mongoose from "mongoose";
 const mediaSchema = new mongoose.Schema(
   {
     url: { type: String, required: true, trim: true },
-
+identifier: {
+      type: String,
+},
     type: {
       type: String,
       enum: ["image", "video", "external"],

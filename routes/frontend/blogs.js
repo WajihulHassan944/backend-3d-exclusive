@@ -8,6 +8,7 @@ import {
   getBlogStats,
   publishScheduledBlogs,
   getBlogBySlug,
+  migrateBlogImagesToMedia,
 } from "../../controllers/frontend/blogs.js";
 
 import upload from "../../middlewares/upload.js"; // multer memory-storage wrapper
@@ -20,7 +21,7 @@ router.get("/publish-scheduled", publishScheduledBlogs);
 router.post("/create", isAuthenticated, upload.single("featuredImage"), createBlog);
 router.put("/update/:id", isAuthenticated, upload.single("featuredImage"), updateBlog);
 router.get("/get-blog-with-slug-url/:slug", getBlogBySlug);
-
+router.get("/migrate-blog-images", migrateBlogImagesToMedia);
 router.get("/all", getAllBlogs);
 router.get("/get-by-id/:id", getBlogById);
 router.delete("/delete/:id", isAuthenticated, deleteBlog);
