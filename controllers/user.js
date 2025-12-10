@@ -158,7 +158,7 @@ user.lastLogin = new Date();
     });
 
     await transporter.sendMail({
-      from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+      from: `"Xclusive 3D" <${process.env.FROM}>`,
       to: user.email,
       subject: "Welcome to Xclusive 3D – Sign in with Apple",
       html: `<p>Hi ${user.firstName}, you signed up with Apple ID 🎉</p>`,
@@ -233,7 +233,7 @@ export const googleRegister = async (req, res, next) => {
     });
 
     await transporter.sendMail({
-      from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+      from: `"Xclusive 3D" <${process.env.FROM}>`,
       to: user.email,
       subject: "Welcome to Xclusive 3D – Convert Your Videos to Stunning 3D",
       html: welcomeHtml,
@@ -254,7 +254,7 @@ export const googleRegister = async (req, res, next) => {
     });
 
     await transporter.sendMail({
-      from: `"Xclusive 3D Notifications" <${process.env.ADMIN_EMAIL}>`,
+      from: `"Xclusive 3D Notifications" <${process.env.FROM}>`,
       to: process.env.ADMIN_EMAIL,
       subject: "🚀 New Google Signup – Xclusive 3D",
       html: adminNotificationHtml,
@@ -542,7 +542,7 @@ if (subscribeNewsletter === 'true') {
 
 if (addedByAdmin) {
   await transporter.sendMail({
-    from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+    from: `"Xclusive 3D" <${process.env.FROM}>`,
     to: email,
     subject: "You’ve been added to Xclusive 3D",
     html: generateEmailTemplate({
@@ -570,7 +570,7 @@ if (addedByAdmin) {
   const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "1d" });
   const verificationLink = `https://backend-3d-exclusive.vercel.app/api/users/verify-email?token=${token}`;
 await transporter.sendMail({
-  from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+  from: `"Xclusive 3D" <${process.env.FROM}>`,
   to: email,
   subject: "Verify Your Email",
   html: generateEmailTemplate({
@@ -745,7 +745,7 @@ export const resetPasswordRequest = async (req, res, next) => {
 
     // Compose email
     const mailOptions = {
-      from: `"Service Marketplace Admin" <${process.env.ADMIN_EMAIL}>`,
+      from: `"Service Marketplace Admin" <${process.env.FROM}>`,
       to: user.email,
       subject: "Password Reset Request",
       html: generateEmailTemplate({
@@ -820,7 +820,7 @@ export const resetPasswordRequestEmail = async (req, res, next) => {
 
     // 4. Send the email
     await transporter.sendMail({
-      from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+      from: `"Xclusive 3D" <${process.env.FROM}>`,
       to: user.email,
       subject: "Reset Your Password – Xclusive 3D",
       html: resetHtml,
@@ -996,7 +996,7 @@ export const handleContactForm = async (req, res, next) => {
     });
 
     await transporter.sendMail({
-      from: `"Xclusive 3D Contact Form" <${process.env.ADMIN_EMAIL}>`,
+      from: `"Xclusive 3D Contact Form" <${process.env.FROM}>`,
       to: process.env.ADMIN_EMAIL,
       subject: `📬 New Contact Message from ${name}`,
       html: adminHtml,
@@ -1016,7 +1016,7 @@ export const handleContactForm = async (req, res, next) => {
     });
 
     await transporter.sendMail({
-      from: `"Xclusive 3D Team" <${process.env.ADMIN_EMAIL}>`,
+      from: `"Xclusive 3D Team" <${process.env.FROM}>`,
       to: email,
       subject: "✅ We've Received Your Message – Xclusive 3D",
       html: userHtml,
@@ -1149,7 +1149,7 @@ export const subscribeNewsletter = async (req, res, next) => {
     });
 
     await transporter.sendMail({
-      from: `"Xclusive 3D Newsletter" <${process.env.ADMIN_EMAIL}>`,
+      from: `"Xclusive 3D Newsletter" <${process.env.FROM}>`,
       to: email,
       subject: "🎉 Welcome to Xclusive 3D",
       html,

@@ -81,7 +81,8 @@ export const saveR2Metadata = async (req, res) => {
       conversionFormat,
       fileSize,
       creditsUsed,
-      threeDExperience
+      threeDExperience,
+      clientInfo
     } = req.body;
 
     const user = await User.findById(req.user._id);
@@ -133,6 +134,7 @@ const estimatedProcessingTime = ((totalFrames / renderFPS) * 1.15) / 60; // in m
       threeDExperience: formattedExperience,
       progress: 0,
       estimatedProcessingTime, // ✅ stored in backend
+      clientInfo: clientInfo || null,
     });
 
     // ✅ Send confirmation email
@@ -147,7 +149,7 @@ const estimatedProcessingTime = ((totalFrames / renderFPS) * 1.15) / 60; // in m
     });
 
     await transporter.sendMail({
-      from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+      from: `"Xclusive 3D" <${process.env.FROM}>`,
       to: user.email,
       subject: '✅ Your Video is Uploaded – Xclusive 3D',
       html: emailHtml,
@@ -285,7 +287,7 @@ if (status && (!plainUrl || status !== "completed")) {
       });
 
       await transporter.sendMail({
-        from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+        from: `"Xclusive 3D" <${process.env.FROM}>`,
         to: user.email,
         subject: "✅ Your 3D Video is Ready – Xclusive 3D",
         html: emailHtml,
@@ -344,6 +346,7 @@ export const getConversionQueue = async (req, res) => {
       conversionUrl: v.b2Url || "",
       convertedUrl: v.convertedUrl || "",
       createdAt: v.createdAt,
+      clientInfo: v.clientInfo || null,
       creditsRefunded: v.creditsRefunded,
     }));
 
@@ -533,7 +536,7 @@ export const resendVideoNotification = async (req, res) => {
 
     // Send email again
     await transporter.sendMail({
-      from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+      from: `"Xclusive 3D" <${process.env.FROM}>`,
       to: user.email,
       subject: "✅ Your 3D Video is Ready – Xclusive 3D",
       html: emailHtml,

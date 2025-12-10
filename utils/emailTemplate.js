@@ -1,4 +1,3 @@
-// emailTemplate.js// emailTemplate.js
 const generateEmailTemplate = ({
   firstName = '',
   subject = 'Xclusive 3D',

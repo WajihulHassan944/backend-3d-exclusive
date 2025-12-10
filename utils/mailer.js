@@ -1,13 +1,15 @@
-
 import dotenv from "dotenv";
 dotenv.config({ path: "./data/config.env" });
 
 import nodemailer from "nodemailer";
 
 export const transporter = nodemailer.createTransport({
-  service: "Gmail", // or use "smtp.mailtrap.io", "SendGrid", etc.
+  host: process.env.SMTP_HOST,     // smtp.transip.email
+  port: Number(process.env.SMTP_PORT), // 587
+  secure: false,                   // MUST be false for STARTTLS
+  requireTLS: true,                // Enables STARTTLS
   auth: {
-    user: process.env.ADMIN_EMAIL,       // e.g. your Gmail: myemail@gmail.com
-    pass: process.env.ADMIN_EMAIL_PASS,  // e.g. your App Password (for Gmail)
+    user: process.env.SMTP_USER,   // noreply@xclusive3d.com
+    pass: process.env.SMTP_PASS,   // password client gave you
   },
 });

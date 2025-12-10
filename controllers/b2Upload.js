@@ -76,7 +76,7 @@ export const saveB2Metadata = async (req, res) => {
     });
 
     await transporter.sendMail({
-      from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+      from: `"Xclusive 3D" <${process.env.FROM}>`,
       to: user.email,
       subject: '✅ Your Video is Uploaded – Xclusive 3D',
       html: emailHtml,
@@ -251,7 +251,7 @@ export const uploadToB2 = async (req, res) => {
     });
 
     await transporter.sendMail({
-      from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+      from: `"Xclusive 3D" <${process.env.FROM}>`,
       to: user.email,
       subject: '✅ Your Video is Uploaded – Xclusive 3D',
       html: emailHtml,

@@ -485,7 +485,7 @@ try {
   });
 
   await transporter.sendMail({
-    from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+    from: `"Xclusive 3D" <${process.env.FROM}>`,
     to: user.email,
     subject: "We’d love your feedback! – Xclusive 3D",
     html: emailHtml,
@@ -1541,7 +1541,7 @@ const emailHtml = generateEmailTemplate({
 });
 
 await transporter.sendMail({
-  from: `"Xclusive 3D" <${process.env.ADMIN_EMAIL}>`,
+  from: `"Xclusive 3D" <${process.env.FROM}>`,
   to: invoice.user.email,
   subject: "Order Cancelled – Xclusive 3D",
   html: emailHtml,

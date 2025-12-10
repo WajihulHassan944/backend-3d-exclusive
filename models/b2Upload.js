@@ -72,6 +72,10 @@ startedAt: {
   type: Date,
   default: null, // set when processing begins
 },
+clientInfo: {
+  type: mongoose.Schema.Types.Mixed,
+  default: null,
+},
 
   createdAt: {
     type: Date,
