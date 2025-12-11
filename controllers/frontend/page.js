@@ -420,7 +420,6 @@ export const getHomeSeo = async (req, res) => {
 
 
 
-// ✅ Toggle isComingSoon for ALL pages
 export const toggleComingSoon = async (req, res) => {
   try {
     const { isComingSoon } = req.body;
@@ -448,11 +447,37 @@ export const toggleComingSoon = async (req, res) => {
     });
   }
 };
+export const toggleStickyNav = async (req, res) => {
+  try {
+    const { isStickyNav } = req.body;
 
+    if (typeof isStickyNav !== "boolean") {
+      return res.status(400).json({
+        success: false,
+        message: "isStickyNav must be a boolean",
+      });
+    }
+
+    // Update all pages
+    await page.updateMany({}, { isStickyNav });
+
+    return res.status(200).json({
+      success: true,
+      message: `isStickyNav updated to ${isStickyNav} for all pages`,
+    });
+  } catch (error) {
+    console.error("Error updating sticky nav:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update sticky nav",
+      error: error.message,
+    });
+  }
+};
 
 export const getComingSoonStatus = async (req, res) => {
   try {
-    const anyPage = await page.findOne().select("isComingSoon");
+    const anyPage = await page.findOne().select("isComingSoon isStickyNav");
 
     if (!anyPage) {
       return res.status(404).json({
@@ -464,12 +489,13 @@ export const getComingSoonStatus = async (req, res) => {
     return res.status(200).json({
       success: true,
       isComingSoon: anyPage.isComingSoon,
+      isStickyNav: anyPage.isStickyNav,
     });
   } catch (error) {
-    console.error("Error fetching ComingSoon state:", error);
+    console.error("Error fetching ComingSoon/StickyNav state:", error);
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch Coming Soon state",
+      message: "Failed to fetch page state",
       error: error.message,
     });
   }

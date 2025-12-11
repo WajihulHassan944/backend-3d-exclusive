@@ -7,25 +7,28 @@ import { pusher } from "../utils/pusher.js";
 
 let liveVisitors = 0;
 
-// called when user connects (frontend triggers)
 export const userConnected = async (req, res) => {
   try {
     liveVisitors++;
 
-    // ✅ Get isComingSoon from ANY page (since you update all pages at once)
-    const anyPage = await page.findOne().select("isComingSoon");
-    const isComingSoon = anyPage?.isComingSoon ?? false;
+    // Fetch both states from ANY page
+    const anyPage = await page.findOne().select("isComingSoon isStickyNav");
 
-    // 🔥 Push live update
+    const isComingSoon = anyPage?.isComingSoon ?? false;
+    const isStickyNav = anyPage?.isStickyNav ?? false;
+
+    // 🔥 Push live update event
     await pusher.trigger("exclusive", "live-visitors-update", {
       count: liveVisitors,
-      isComingSoon, // include in event too
+      isComingSoon,
+      isStickyNav, // send sticky nav state
     });
 
     return res.status(200).json({
       success: true,
       count: liveVisitors,
       isComingSoon,
+      isStickyNav, // send back in API too
     });
   } catch (error) {
     console.error("Pusher liveVisitors error:", error);

@@ -107,6 +107,10 @@ isComingSoon: {
   default: false,
 },
 
+isStickyNav: {
+  type: Boolean,
+  default: false,
+},
     seo: seoSchema,
     sections: [sectionSchema],
   },
