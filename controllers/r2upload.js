@@ -326,31 +326,51 @@ export const getConversionQueue = async (req, res) => {
       .populate("user", "firstName lastName email")
       .sort({ createdAt: -1 });
 
-    const formatted = videos.map((v) => ({
-      id: v._id,
-      status: v.status,
-      customer: `${v.user?.firstName || ""} ${v.user?.lastName || ""}`.trim(),
-      email: v.user?.email || "",
-      fileName: v.originalFileName,
-      fileSize: v.fileSize || "-",
-      type: v.conversionFormat || "-",
-      progress:
-        v.status === "completed"
-          ? "100%"
-          : v.status === "failed"
-          ? "Failed"
-          : `${v.progress || 0}%`,
-      credits: v.creditsUsed || 0,
-      duration: v.lengthInSeconds
-        ? `${Math.floor(v.lengthInSeconds / 60)}m ${v.lengthInSeconds % 60}s`
-        : "-",
-      errorMessage: v.errorMessage || "",
-      conversionUrl: v.b2Url || "",
-      convertedUrl: v.convertedUrl || "",
-      createdAt: v.createdAt,
-      clientInfo: v.clientInfo || null,
-      creditsRefunded: v.creditsRefunded,
-    }));
+const formatted = videos.map((v) => ({
+  id: v._id,
+  status: v.status,
+  customer: `${v.user?.firstName || ""} ${v.user?.lastName || ""}`.trim(),
+  email: v.user?.email || "",
+  fileName: v.originalFileName,
+  fileSize: v.fileSize || "-",
+  type: v.conversionFormat || "-",
+
+  // ✅ NEW → File type (extension only)
+  fileType: v.originalFileName?.split(".").pop() || "",
+
+  // ✅ NEW → Resolution from quality field (e.g. "1080p")
+  resolution: v.quality || "-",
+
+  // ✅ NEW → fps
+  fps: v.fps || null,
+
+  progress:
+    v.status === "completed"
+      ? "100%"
+      : v.status === "failed"
+      ? "Failed"
+      : `${v.progress || 0}%`,
+  credits: v.creditsUsed || 0,
+  duration: v.lengthInSeconds
+    ? `${Math.floor(v.lengthInSeconds / 60)}m ${v.lengthInSeconds % 60}s`
+    : "-",
+  errorMessage: v.errorMessage || "",
+  conversionUrl: v.b2Url || "",
+  convertedUrl: v.convertedUrl || "",
+
+  // ✅ NEW → completedAt (formatted)
+  completedAt: v.completedAt
+    ? v.completedAt.toISOString().slice(0, 16).replace("T", " ")
+    : null,
+
+  // ⏰ NEW → createdAt formatted (YYYY-MM-DD HH:mm)
+  createdAt: v.createdAt
+    ? v.createdAt.toISOString().slice(0, 16).replace("T", " ")
+    : null,
+
+  clientInfo: v.clientInfo || null,
+  creditsRefunded: v.creditsRefunded,
+}));
 
     res.json({ success: true, queue: formatted });
   } catch (err) {
