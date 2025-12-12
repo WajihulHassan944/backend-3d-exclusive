@@ -135,6 +135,7 @@ const estimatedProcessingTime = ((totalFrames / renderFPS) * 1.15) / 60; // in m
       progress: 0,
       estimatedProcessingTime, // ✅ stored in backend
       clientInfo: clientInfo || null,
+      fps: renderFPS,
     });
 
     // ✅ Send confirmation email
@@ -272,6 +273,7 @@ if (status && (!plainUrl || status !== "completed")) {
       video.status = "completed";
       video.convertedUrl = signedUrl;
       video.progress = 100;
+       video.completedAt = new Date();
       await video.save();
 
       const user = video.user;

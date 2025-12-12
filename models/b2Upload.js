@@ -13,6 +13,10 @@ const videoSchema = new mongoose.Schema({
   fileSize: {
     type: String, // e.g. "125 MB"
   },
+  
+  fps: {
+    type: String, 
+  },
   b2Url: {
     type: String,
     required: true,
@@ -71,6 +75,11 @@ estimatedProcessingTime: { type: Number }, // in seconds or minutes
 startedAt: {
   type: Date,
   default: null, // set when processing begins
+},
+
+completedAt: {
+  type: Date,
+  default: null,
 },
 clientInfo: {
   type: mongoose.Schema.Types.Mixed,
