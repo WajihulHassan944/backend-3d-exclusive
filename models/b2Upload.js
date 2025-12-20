@@ -29,6 +29,10 @@ const videoSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+   freeTrial: {
+    type: Boolean,
+    default: false,
+  },
 
   lengthInSeconds: {
     type: Number,

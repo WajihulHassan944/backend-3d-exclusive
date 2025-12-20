@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const schema = new mongoose.Schema({
   firstName: {
     type: String,
-    required: true,
+    required: false,
   },
   lastName: {
     type: String,
@@ -31,6 +31,10 @@ const schema = new mongoose.Schema({
   hasFreeConversion: {
   type: Boolean,
   default: true, // one-time gift on registration
+},
+  signedUp: {
+  type: Boolean,
+  default: true, 
 },
 appleId: { type: String, unique: true, sparse: true },
 newsletterOptIn: {

@@ -276,24 +276,72 @@ if (status && (!plainUrl || status !== "completed")) {
        video.completedAt = new Date();
       await video.save();
 
-      const user = video.user;
+    const user = video.user;
 
-      const emailHtml = generateEmailTemplate({
+if (video.freeTrial) {
+  // 🎁 Free trial discount email
+  try {
+    await transporter.sendMail({
+      from: `"Xclusive 3D" <${process.env.FROM}>`,
+      to: user.email,
+      subject: "🎁 Your 40% Discount – Continue Full Conversion",
+      html: generateEmailTemplate({
         firstName: user.firstName || "there",
-        subject: "🚀 Your Video is Ready!",
-        content: `
-          <p style="color:#fff;">Hi ${user.firstName},</p>
-          <p style="color:#fff;">Your video <strong>${video.originalFileName}</strong> has been successfully converted to 3D.</p>
-          <p style="color:#fff;">You can <a href="${signedUrl}" style="color:#ff8c2f;">click here</a> to download it.</p>
-        `,
-      });
+        subject: "Unlock Full 3D Conversion",
+       content: `
+          <p>Thanks for trying our <strong>10-second free 3D preview</strong>!</p>
 
-      await transporter.sendMail({
-        from: `"Xclusive 3D" <${process.env.FROM}>`,
-        to: user.email,
-        subject: "✅ Your 3D Video is Ready – Xclusive 3D",
-        html: emailHtml,
-      });
+          <p>
+            👉 <a href="${signedUrl}" style="color:#ff8c2f;font-weight:bold;">
+              Download your 3D preview
+            </a>
+          </p>
+
+          <p>Want the full video in stunning 3D?</p>
+          <ul>
+            <li>✅ Full-length conversion</li>
+            <li>✅ Best 3D depth & clarity</li>
+            <li>✅ Priority processing</li>
+            <li>✅ VR-ready output formats</li>
+          </ul>
+
+          <p><strong>Use this exclusive 40% discount code:</strong></p>
+          <div style="font-size:18px;font-weight:bold;margin:16px 0;">
+            ${video.discountCode || "TRIAL40"}
+          </div>
+
+          <div style="margin:30px 0;text-align:center;">
+            <a href="https://www.xclusive3d.com/signup"
+              style="padding:12px 22px;background:#FF5722;color:#fff;
+              border-radius:6px;text-decoration:none;">
+              Convert Full Video
+            </a>
+          </div>
+        `,
+      }),
+    });
+  } catch (mailErr) {
+    console.error("❌ Free trial email failed:", mailErr);
+  }
+} else {
+  // 🚀 Normal completion email
+  const emailHtml = generateEmailTemplate({
+    firstName: user.firstName || "there",
+    subject: "🚀 Your Video is Ready!",
+    content: `
+      <p>Your video <strong>${video.originalFileName}</strong> has been successfully converted to 3D.</p>
+      <p>You can <a href="${signedUrl}" style="color:#ff8c2f;">click here</a> to download it.</p>
+    `,
+  });
+
+  await transporter.sendMail({
+    from: `"Xclusive 3D" <${process.env.FROM}>`,
+    to: user.email,
+    subject: "✅ Your 3D Video is Ready – Xclusive 3D",
+    html: emailHtml,
+  });
+}
+
 
       console.log(`📩 Completion email sent to ${user.email} for video ${video.originalFileName}`);
 
@@ -581,5 +629,136 @@ export const resendVideoNotification = async (req, res) => {
   } catch (err) {
     console.error("❌ Error resending video notification:", err);
     return res.status(500).json({ error: "Server error while resending notification" });
+  }
+};
+
+
+
+
+export const freeTrialUploadAndSignedUrl = async (req, res) => {
+  try {
+    const {
+      email,
+      fileName,
+      fileType,
+      lengthInSeconds,
+      fileSize,
+      conversionFormat,
+      quality,
+      threeDExperience,
+      clientInfo,
+    } = req.body;
+
+    if (!email || !fileName || !fileType) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    if (lengthInSeconds > 10) {
+      return res.status(400).json({
+        error: "Free trial is limited to 10 seconds only",
+      });
+    }
+
+    // 🔍 Find or create user
+    let user = await User.findOne({ email });
+
+    if (!user) {
+   
+      user = await User.create({
+        firstName:'Free trial user',
+        email,
+        verified: false,
+        hasFreeConversion: false,
+        newsletterOptIn: true,
+        signedUp: false,
+      });
+    }
+
+    // ❌ Block second free trial
+    const alreadyUsed = await Video.findOne({
+      user: user._id,
+      freeTrial: true,
+    });
+
+    if (alreadyUsed) {
+      return res.status(403).json({
+        error: "Free trial already used",
+      });
+    }
+
+    // 📂 Cloudflare R2 → free-trial folder
+    const key = `free-trial/${Date.now()}_${fileName}`;
+
+    const putCommand = new PutObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME,
+      Key: key,
+      ContentType: fileType,
+    });
+
+    const uploadSignedUrl = await getSignedUrl(r2Client, putCommand, {
+      expiresIn: 600,
+    });
+
+    // 🔗 Read URL (7 days)
+    const getCommand = new GetObjectCommand({
+      Bucket: process.env.R2_BUCKET_NAME,
+      Key: key,
+    });
+
+    const b2Url = await getSignedUrl(r2Client, getCommand, {
+      expiresIn: 60 * 60 * 24 * 7,
+    });
+
+    // 🎞 Save video metadata
+    const video = await Video.create({
+      user: user._id,
+      originalFileName: fileName,
+      fileSize,
+      b2Url,
+      lengthInSeconds,
+      conversionFormat,
+      quality,
+      threeDExperience: threeDExperience || "Comfort",
+      freeTrial: true,
+      creditsUsed: 0,
+      status: "uploaded",
+      clientInfo: {
+        ...clientInfo,
+        freeTrialEmail: email,
+      },
+    });
+
+    // 🎁 Discount code
+    const discountCode = `TRIAL40`;
+
+     
+    // 📬 MailerLite (free trial group)
+    try {
+      await fetch("https://connect.mailerlite.com/api/subscribers", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${process.env.MAILER_LITE}`,
+        },
+        body: JSON.stringify({
+          email,
+          groups: ['160816159398036489'],
+        }),
+      });
+    } catch (err) {
+      console.error("MailerLite error:", err.message);
+    }
+
+    return res.status(200).json({
+      success: true,
+      signedUrl: uploadSignedUrl,
+      key,
+      videoId: video._id,
+      discountCode,
+    });
+  } catch (err) {
+    console.error("❌ Free trial error:", err);
+    res.status(500).json({ error: "Free trial upload failed" });
   }
 };

@@ -373,10 +373,16 @@ export const validateCoupon = async (req, res, next) => {
       if (!req.user || !req.user.email) {
         return res.status(401).json({ success: false, message: "Authentication required to use this coupon" });
       }
-      if (req.user.email.toLowerCase() !== coupon.usageRestriction.userEmail.toLowerCase()) {
-        return res.status(403).json({ success: false, message: "This coupon is restricted to another user" });
-      }
-    }
+   if (
+  coupon?.usageRestriction?.userEmail &&
+  req.user.email.toLowerCase() !== coupon.usageRestriction.userEmail.toLowerCase()
+) {
+  return res.status(403).json({
+    success: false,
+    message: "This coupon is restricted to another user",
+  });
+}
+ }
 
     // ✅ Valid coupon, return all coupon data
     return res.status(200).json({

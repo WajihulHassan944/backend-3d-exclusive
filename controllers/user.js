@@ -103,7 +103,7 @@ export const appleAuth = async (req, res, next) => {
       (email && (await User.findOne({ email }))) ||
       (await User.findOne({ appleId: sub }));
 
-    if (user) {
+    if (user && user.signedUp === true) {
       if (!user.verified) {
         return res.redirect(
           `https://www.xclusive3d.com/login?error=AccountNotVerified`
@@ -189,24 +189,43 @@ export const googleRegister = async (req, res, next) => {
 
     let user = await User.findOne({ email });
 
-    if (user) {
-      return next(new ErrorHandler("User already exists. Please login.", 400));
-    }
+    if (user && user.signedUp === true) {
+  return next(new ErrorHandler("User Already Exists", 400));
+}
 
     const [firstName, lastName = ""] = name.split(" ");
 
-    user = await User.create({
-      firstName,
-      lastName,
-      email,
-      country: country || 'Unknown',
-      profileUrl: picture,
-      verified: true,
-      isNotificationsEnabled: true,
-      isSubscribed: true,
-      isAgreed: true,
-    });
+   if (user && user.signedUp === false) {
+  // ✅ Override existing incomplete user (keep email)
+  user.firstName = firstName;
+  user.lastName = lastName;
+  user.country = country || user.country || "Unknown";
+  user.profileUrl = picture;
+  user.verified = true;
+  user.signedUp = true;
+  user.isNotificationsEnabled = true;
+  user.isSubscribed = true;
+  user.isAgreed = true;
 
+  await user.save({ validateBeforeSave: false });
+} else {
+  // ✅ Brand new user
+  user = await User.create({
+    firstName,
+    lastName,
+    email,
+    country: country || "Unknown",
+    profileUrl: picture,
+    verified: true,
+    signedUp: true,
+    isNotificationsEnabled: true,
+    isSubscribed: true,
+    isAgreed: true,
+  });
+}
+
+const existingWallet = await Wallet.findOne({ userId: user._id });
+if (!existingWallet) {
     const stripeCustomer = await stripe.customers.create({
       email: user.email,
       name: `${user.firstName} ${user.lastName}`.trim(),
@@ -219,7 +238,7 @@ export const googleRegister = async (req, res, next) => {
       cards: [],
       transactions: [],
     });
-
+  }
     // ✅ Branded Welcome Email (Xclusive 3D)
     const welcomeHtml = generateEmailTemplate({
       firstName: user.firstName,
@@ -279,7 +298,14 @@ export const googleLogin = async (req, res, next) => {
     if (!user) {
       return next(new ErrorHandler("User not found. Please register.", 404));
     }
-
+if (user.signedUp === false) {
+  return next(
+    new ErrorHandler(
+      "This account has not completed registration. Please sign up first.",
+      403
+    )
+  );
+}
     if (!user.verified) {
       return next(new ErrorHandler("Account is not verified.", 403));
     }
@@ -381,7 +407,12 @@ export const login = async (req, res, next) => {
     if (!user) {
       return next(new ErrorHandler("Invalid Email or Password", 400));
     }
-
+if (user.signedUp === false) {
+  return res.status(403).json({
+    success: false,
+    message: "This account has not completed registration. Please sign up first.",
+  });
+}
     // Check if user is verified
     if (!user.verified) {
       return res.status(403).json({
@@ -457,9 +488,9 @@ export const register = async (req, res, next) => {
     const existingUser = await User.findOne({ email });
 
     
-    // Normal new user flow
-    if (existingUser) return next(new ErrorHandler("User Already Exists", 400));
-    
+if (existingUser && existingUser.signedUp === true) {
+  return next(new ErrorHandler("User Already Exists", 400));
+}    
     const hashedPassword = await bcrypt.hash(password, 10);
 
  
@@ -495,8 +526,31 @@ export const register = async (req, res, next) => {
          ...(addedByAdmin ? { verified: true } : {}),
     };
 
-   
-    const user = await User.create(newUserData);
+   let user;
+
+if (existingUser && existingUser.signedUp === false) {
+  // ✅ Override incomplete user (keep email)
+  existingUser.firstName = firstName;
+  existingUser.lastName = lastName;
+  existingUser.password = hashedPassword;
+  existingUser.country = country;
+  existingUser.profileUrl = profileUrl;
+  existingUser.newsletterOptIn = subscribeNewsletter === "true";
+  existingUser.signedUp = true;
+
+  if (role) existingUser.role = [role];
+  if (addedByAdmin) existingUser.verified = true;
+
+  user = await existingUser.save({ validateBeforeSave: false });
+} else {
+  // ✅ Brand new user
+  user = await User.create({
+    ...newUserData,
+    signedUp: true,
+  });
+}
+
+    
 if (subscribeNewsletter === 'true') {
   try {
     const res = await fetch(`https://connect.mailerlite.com/api/subscribers`, {
@@ -526,18 +580,23 @@ if (subscribeNewsletter === 'true') {
 }
 
 
-    const stripeCustomer = await stripe.customers.create({
-      email: user.email,
-      name: `${user.firstName} ${user.lastName}`.trim(),
-    });
+const existingWallet = await Wallet.findOne({ userId: user._id });
 
-    const newWallet = await Wallet.create({
-      userId: user._id,
-      stripeCustomerId: stripeCustomer.id,
-      balance: 0,
-      cards: [],
-      transactions: [],
-    });
+if (!existingWallet) {
+  const stripeCustomer = await stripe.customers.create({
+    email: user.email,
+    name: `${user.firstName} ${user.lastName}`.trim(),
+  });
+
+  await Wallet.create({
+    userId: user._id,
+    stripeCustomerId: stripeCustomer.id,
+    balance: 0,
+    cards: [],
+    transactions: [],
+  });
+}
+
 
 
 if (addedByAdmin) {
