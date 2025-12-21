@@ -1457,25 +1457,21 @@ export const sendTestEmail = async (req, res) => {
         message: "Email param is required",
       });
     }
-
-    await transporter.sendMail({
-      from: `"Xclusive 3D" <${process.env.SMTP_USER}>`, // MUST match SMTP_USER
-      to: email,
-      subject: "SMTP Inbox Test – Xclusive 3D",
-      text: `Hello,
+await transporter.sendMail({
+  from: `"Xclusive 3D" <${process.env.SMTP_USER}>`, // MUST match SMTP_USER
+  to: email,
+  subject: "SMTP Inbox Test – Xclusive 3D",
+  text: `Hello,
 
 This is a plain-text test email sent via Nodemailer using TransIP SMTP.
 
-If you received this in your inbox (not spam), your SMTP configuration is correct.
+This message was requested as part of a system test for xclusive3d.com.
 
-— Xclusive 3D`,
-      html: `
-        <p>Hello,</p>
-        <p>This is a <strong>test email</strong> sent via Nodemailer using <strong>TransIP SMTP</strong>.</p>
-        <p>If you received this in your inbox (not spam), your setup is correct.</p>
-        <p>— Xclusive 3D</p>
-      `,
-    });
+If you received this in your inbox (not spam), your SMTP configuration and domain authentication are correct.
+
+— Xclusive 3D
+`,
+});
 
     return res.status(200).json({
       success: true,
