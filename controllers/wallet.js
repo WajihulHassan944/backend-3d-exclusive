@@ -475,7 +475,7 @@ try {
       <p style="color:#fff;">Hi ${user.firstName || "there"},</p>
       <p style="color:#fff;">Thank you for your recent purchase (Invoice <strong>${invoiceNumber}</strong>).</p>
       <p style="color:#fff;">We’d really appreciate it if you could take a moment to share your experience.</p>
-      <a href="https://frontend-3d-exclusive.vercel.app/write-review" 
+      <a href="https://www.xclusive3d.com/write-review" 
          style="display:inline-block;margin-top:10px;background-color:#ff8c2f;color:#fff;padding:10px 20px;
                 text-decoration:none;border-radius:8px;font-weight:bold;">
         Write a Review

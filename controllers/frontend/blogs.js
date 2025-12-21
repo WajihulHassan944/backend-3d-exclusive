@@ -418,7 +418,7 @@ export const migrateBlogImagesToMedia = async (req, res) => {
 
       // Create new media record
       await Media.create({
-        url: blog.featuredImage || "https://frontend-3d-exclusive.vercel.app/blogs/one.jpg",
+        url: blog.featuredImage || "https://www.xclusive3d.com/blogs/one.jpg",
         identifier,
         type: "image",
         size: null, // could be updated later

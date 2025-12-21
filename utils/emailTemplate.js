@@ -2,8 +2,8 @@ const generateEmailTemplate = ({
   firstName = '',
   subject = 'Xclusive 3D',
   content = '',
-  logoUrl = 'https://res.cloudinary.com/daflot6fo/image/upload/v1752739979/Xclusive_3d_white_sj9d1l.png',
-  siteUrl = 'https://frontend-3d-exclusive.vercel.app/'
+  logoUrl = 'https://www.xclusive3d.com/logo.png',
+  siteUrl = 'https://www.xclusive3d.com/'
 }) => {
   return `
     <div style="font-family:Arial, sans-serif; max-width:600px; margin:auto;background: linear-gradient(135deg, #00005d 0%, #0700d3 50%, #a000ff 100%); color:#fff; border-radius:12px; overflow:hidden; box-shadow:0 0 15px rgba(0,0,0,0.1);">
