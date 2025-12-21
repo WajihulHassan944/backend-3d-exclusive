@@ -1444,3 +1444,48 @@ export const deleteStripeCustomerAndWallet = async (req, res, next) => {
     next(error);
   }
 };
+
+
+
+export const sendTestEmail = async (req, res) => {
+  try {
+    const { email } = req.params;
+
+    if (!email) {
+      return res.status(400).json({
+        success: false,
+        message: "Email param is required",
+      });
+    }
+
+    await transporter.sendMail({
+      from: `"Xclusive 3D" <${process.env.SMTP_USER}>`, // MUST match SMTP_USER
+      to: email,
+      subject: "SMTP Inbox Test – Xclusive 3D",
+      text: `Hello,
+
+This is a plain-text test email sent via Nodemailer using TransIP SMTP.
+
+If you received this in your inbox (not spam), your SMTP configuration is correct.
+
+— Xclusive 3D`,
+      html: `
+        <p>Hello,</p>
+        <p>This is a <strong>test email</strong> sent via Nodemailer using <strong>TransIP SMTP</strong>.</p>
+        <p>If you received this in your inbox (not spam), your setup is correct.</p>
+        <p>— Xclusive 3D</p>
+      `,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: `Test email sent to ${email}`,
+    });
+  } catch (error) {
+    console.error("Test email error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to send test email",
+    });
+  }
+};
