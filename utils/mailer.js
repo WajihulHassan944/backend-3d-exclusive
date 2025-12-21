@@ -5,7 +5,7 @@ import nodemailer from "nodemailer";
 
 export const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,     // smtp.transip.email
-  port: Number(process.env.SMTP_PORT), // 465
+  port: 587, // 465
   secure: true,                 
   auth: {
     user: process.env.SMTP_USER,   // noreply@xclusive3d.com
