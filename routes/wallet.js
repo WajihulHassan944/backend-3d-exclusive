@@ -12,7 +12,7 @@ router.delete("/remove-card", removeCard);
 router.get('/all', getWalletByUserId);
 router.post('/validate', validateVATfunc);
 router.post('/checkVat', getVat);
-router.post('/create-setup-intent', isAuthenticated, createSetupIntent);
+router.get('/create-setup-intent', isAuthenticated, createSetupIntent);
 router.post('/create-payment-intent-all-methods', isAuthenticated, createPaymentIntentAllMethods);
 router.get("/all-customers-credits", getAllCustomersCredits);
 router.post("/customers/add-credits", addCredits);

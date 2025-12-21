@@ -51,29 +51,29 @@ export const getCountryCode = (countryName) => {
 // POST /api/wallet/create-setup-intent
 export const createSetupIntent = async (req, res, next) => {
   try {
-   const userAuth = req.user;
+    const userAuth = req.user;
     const userId = userAuth._id;
     const user = await User.findById(userId);
-    if(user){
-      console.log("user found");
-    }
     if (!user) return next(new ErrorHandler("User not found", 404));
 
+    // Step 1: Ensure wallet exists
     let wallet = await Wallet.findOne({ userId });
-    if (!wallet) return next(new ErrorHandler("Wallet not found", 404));
-
-    // ✅ Step 1: Create Stripe customer if not exists
-    if (!wallet.stripeCustomerId) {
-      const customer = await stripe.customers.create({
+    if (!wallet) {
+      const stripeCustomer = await stripe.customers.create({
         email: user.email,
-        name: `${user.firstName} ${user.lastName}`,
+        name: `${user.firstName} ${user.lastName}`.trim(),
       });
 
-      wallet.stripeCustomerId = customer.id;
-      await wallet.save();
+      wallet = await Wallet.create({
+        userId: user._id,
+        stripeCustomerId: stripeCustomer.id,
+        balance: 0,
+        cards: [],
+        transactions: [],
+      });
     }
 
-    // ✅ Step 2: Create SetupIntent
+    // Step 2: Create SetupIntent
     const setupIntent = await stripe.setupIntents.create({
       customer: wallet.stripeCustomerId,
       payment_method_types: ['card'],
