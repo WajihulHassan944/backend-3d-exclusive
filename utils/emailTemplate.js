@@ -18,7 +18,6 @@ const generateEmailTemplate = ({
       </div>
 
       <div style="text-align:center; margin-top:20px; padding-bottom:30px;">
-      <a href="${siteUrl}">   </a>
         <p style="font-size:13px; color:#bbb; margin-top:10px;">Powered by Xclusive 3D</p>
       </div>
     </div>
