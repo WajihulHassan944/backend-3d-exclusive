@@ -1467,7 +1467,6 @@ This is a plain-text test email sent via Nodemailer using TransIP SMTP.
 
 This message was requested as part of a system test for xclusive3d.com.
 
-If you received this in your inbox (not spam), your SMTP configuration and domain authentication are correct.
 
 — Xclusive 3D
 `,
