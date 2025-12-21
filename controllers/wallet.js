@@ -282,10 +282,25 @@ console.log("Coupon data is", coupon);
       return next(new ErrorHandler("User not found", 404));
     }
 
-    const wallet = await Wallet.findOne({ userId });
-    if (!wallet) {
-      return next(new ErrorHandler("Wallet not found", 404));
-    }
+let wallet = await Wallet.findOne({ userId });
+
+if (!wallet) {
+  // ✅ Create Stripe customer for missing wallet
+  const stripeCustomer = await stripe.customers.create({
+    email: user.email,
+    name: `${user.firstName} ${user.lastName}`.trim(),
+  });
+
+  // ✅ Create wallet
+  wallet = await Wallet.create({
+    userId: user._id,
+    stripeCustomerId: stripeCustomer.id,
+    balance: 0,
+    totalPurchased: 0,
+    cards: [],
+    transactions: [],
+  });
+}
 
     const primaryCard = wallet.cards.find(card => card.isPrimary);
     

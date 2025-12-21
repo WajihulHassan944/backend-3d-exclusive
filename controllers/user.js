@@ -1406,3 +1406,41 @@ export const updateUserPassword = async (req, res) => {
       .json({ success: false, message: "Internal server error." });
   }
 };
+
+
+
+
+export const deleteStripeCustomerAndWallet = async (req, res, next) => {
+  try {
+    const { userId } = req.query;
+
+    if (!userId) {
+      return next(new ErrorHandler("userId is required", 400));
+    }
+
+    const wallet = await Wallet.findOne({ userId });
+
+    if (!wallet) {
+      return next(new ErrorHandler("Wallet not found for this user", 404));
+    }
+
+    // ✅ Delete Stripe customer if exists
+    if (wallet.stripeCustomerId) {
+      try {
+        await stripe.customers.del(wallet.stripeCustomerId);
+      } catch (err) {
+        console.error("Stripe customer delete failed:", err.message);
+      }
+    }
+
+    // ✅ Delete wallet
+    await Wallet.deleteOne({ userId });
+
+    res.status(200).json({
+      success: true,
+      message: "Stripe customer and wallet deleted successfully",
+    });
+  } catch (error) {
+    next(error);
+  }
+};

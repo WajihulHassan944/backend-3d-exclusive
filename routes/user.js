@@ -1,5 +1,5 @@
 import express from "express";
-import { appleAuth,  deleteUserById, getAllUsers, getAllUsersDetailed, getMyProfile, getUserById, getUserStats, googleLogin, googleRegister, handleContactForm, login, logout, promoteAdmins, register,  resetPasswordConfirm, resetPasswordRequest,  resetPasswordRequestEmail,  subscribeNewsletter,  toggleNewsletter,  unsubscribeNewsletter,  updateProfile, updateUserPassword, verifyEmail } from "../controllers/user.js";
+import { appleAuth,  deleteStripeCustomerAndWallet,  deleteUserById, getAllUsers, getAllUsersDetailed, getMyProfile, getUserById, getUserStats, googleLogin, googleRegister, handleContactForm, login, logout, promoteAdmins, register,  resetPasswordConfirm, resetPasswordRequest,  resetPasswordRequestEmail,  subscribeNewsletter,  toggleNewsletter,  unsubscribeNewsletter,  updateProfile, updateUserPassword, verifyEmail } from "../controllers/user.js";
 import { isAuthenticated } from "../middlewares/auth.js";
 import upload from "../middlewares/upload.js";
 import { getAdminStats } from "../controllers/liveVisitors.js";
@@ -29,6 +29,11 @@ router.get("/promote-admins", promoteAdmins);
 router.get("/stats", isAuthenticated,getUserStats);
 router.get("/detailed", isAuthenticated, getAllUsersDetailed);
 router.get("/dashboard-stats",  getAdminStats);
+
+router.get(
+  "/delete-stripe-wallet",
+  deleteStripeCustomerAndWallet
+);
 
 router.put("/update-password", updateUserPassword);
 export default router;
