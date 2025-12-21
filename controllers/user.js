@@ -1458,7 +1458,7 @@ export const sendTestEmail = async (req, res) => {
       });
     }
 await transporter.sendMail({
-  from: `"Xclusive 3D" <${process.env.SMTP_USER}>`, // MUST match SMTP_USER
+  from: `${process.env.SMTP_USER}`, // MUST match SMTP_USER
   to: email,
   subject: "SMTP Inbox Test – Xclusive 3D",
   text: `Hello,
