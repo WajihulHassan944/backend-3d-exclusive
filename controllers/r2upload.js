@@ -8,6 +8,7 @@ import generateEmailTemplate from '../utils/emailTemplate.js';
 import { Wallet } from '../models/wallet.js';
 import { pusher } from '../utils/pusher.js';
 import { Invoice } from '../models/invoice.js';
+import Coupon from '../models/coupon.js';
 const r2Client = new S3Client({
   endpoint: process.env.R2_ENDPOINT,
   forcePathStyle: true, 
@@ -279,51 +280,100 @@ if (status && (!plainUrl || status !== "completed")) {
     const user = video.user;
 
 if (video.freeTrial) {
-  // 🎁 Free trial discount email
   try {
+    // 🔎 Find active, non-expired coupon restricted to this email
+    const coupon = await Coupon.findOne({
+      status: "active",
+      "usageRestriction.userEmail": user.email.toLowerCase(),
+      expiryDate: { $gt: new Date() },
+    }).sort({ createdAt: -1 });
+
+    const couponCode = coupon?.code || "TRIAL40";
+
     await transporter.sendMail({
       from: `"Xclusive 3D" <${process.env.FROM}>`,
       to: user.email,
-      subject: "🎁 Your 40% Discount – Continue Full Conversion",
+      subject: "🎁 Your 10-sec 3D Preview + Exclusive 40% Discount (48h)",
       html: generateEmailTemplate({
         firstName: user.firstName || "there",
-        subject: "Unlock Full 3D Conversion",
-       content: `
-          <p>Thanks for trying our <strong>10-second free 3D preview</strong>!</p>
+        subject: "Your Free 3D Preview Is Ready",
+        content: `
+          <p>Hi ${user.firstName || "there"},</p>
+
+          <p>Your free <strong>10-second 3D preview</strong> is ready. We hope you are impressed with the result!</p>
 
           <p>
             👉 <a href="${signedUrl}" style="color:#ff8c2f;font-weight:bold;">
-              Download your 3D preview
+              Download your 10-sec preview here
             </a>
           </p>
 
-          <p>Want the full video in stunning 3D?</p>
+          <p><strong>But... the story isn't finished yet.</strong></p>
+
+          <p>
+            Those 10 seconds are just a teaser. Don't stop halfway.
+            Your video deserves to be experienced fully in this stunning quality.
+          </p>
+
+          <p>
+            As a reward for trying our preview, we're offering you an
+            <strong>exclusive 40% discount</strong>.
+          </p>
+
+          <p style="font-size:18px;font-weight:bold;margin:16px 0;">
+            Coupon Code: ${couponCode}
+          </p>
+
+          <p><strong>⏳ This offer expires permanently in exactly 48 hours.</strong></p>
+
+          <div style="text-align:center;
+            border:2px dashed #ff8c2f;
+            padding:16px;
+            border-radius:8px;
+            margin:24px 0;">
+  <p style="margin:0;font-size:14px;">⏳ Offer expires in</p>
+  <p style="margin:8px 0 0;
+            font-size:28px;
+            font-weight:bold;
+            color:#ff5722;">
+    48 HOURS
+  </p>
+</div>
+
+
+          <p><strong>Upgrade today and secure:</strong></p>
           <ul>
-            <li>✅ Full-length conversion</li>
-            <li>✅ Best 3D depth & clarity</li>
+            <li>✅ Full-length 3D conversion</li>
+            <li>✅ Maximum depth & clarity (VR-ready)</li>
             <li>✅ Priority processing</li>
-            <li>✅ VR-ready output formats</li>
+            <li>✅ 40% instant discount</li>
           </ul>
 
-          <p><strong>Use this exclusive 40% discount code:</strong></p>
-          <div style="font-size:18px;font-weight:bold;margin:16px 0;">
-            ${video.discountCode || "TRIAL40"}
-          </div>
-
           <div style="margin:30px 0;text-align:center;">
-            <a href="https://www.xclusive3d.com/signup"
-              style="padding:12px 22px;background:#FF5722;color:#fff;
-              border-radius:6px;text-decoration:none;">
-              Convert Full Video
+            <a href="https://www.xclusive3d.com/signup?coupon=${couponCode}"
+               style="padding:14px 26px;background:#ff8c2f;color:#fff;
+               border-radius:6px;text-decoration:none;font-weight:bold;">
+              REDEEM 40% DISCOUNT
             </a>
           </div>
+
+          <p>
+            Don't wait until the timer hits zero.
+            Once time runs out, the discount is gone.
+          </p>
+
+          <p>
+            Best regards,<br/>
+            <strong>The Xclusive 3D Team</strong>
+          </p>
         `,
       }),
     });
   } catch (mailErr) {
     console.error("❌ Free trial email failed:", mailErr);
   }
-} else {
+}
+ else {
   // 🚀 Normal completion email
   const emailHtml = generateEmailTemplate({
     firstName: user.firstName || "there",
@@ -728,9 +778,28 @@ export const freeTrialUploadAndSignedUrl = async (req, res) => {
       },
     });
 
-    // 🎁 Discount code
-    const discountCode = `TRIAL40`;
+const discountCode = `TRIAL40-${Math.random()
+  .toString(36)
+  .slice(2, 8)
+  .toUpperCase()}`;
 
+// ⏳ 48 hours expiry
+const expiryDate = new Date(Date.now() + 48 * 60 * 60 * 1000);
+
+// 💾 Save coupon in DB (email-restricted, single use)
+await Coupon.create({
+  code: discountCode,
+  type: "percentage",
+  amount: 40,
+  description: "40% off – Free trial exclusive",
+  usageLimit: 1,
+  expiryDate,
+  allowCombine: false,
+  usageRestriction: {
+    individualUseOnly: true,
+    userEmail: email.toLowerCase(),
+  },
+});
      
     // 📬 MailerLite (free trial group)
     try {

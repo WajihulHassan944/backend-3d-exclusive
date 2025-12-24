@@ -3,26 +3,26 @@ dotenv.config({ path: "./data/config.env" });
 
 import nodemailer from "nodemailer";
 
-export const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,     // smtp.transip.email
-  port: Number(process.env.SMTP_PORT), // 465
-  secure: true,                 
-  auth: {
-    user: process.env.SMTP_USER,   // noreply@xclusive3d.com
-    pass: process.env.SMTP_PASS,   // password 
-  },
-});
-
-
 // export const transporter = nodemailer.createTransport({
-//   host: process.env.SMTP_HOST,
-//   port: 587,
-//   secure: false, // IMPORTANT
+//   host: process.env.SMTP_HOST,     // smtp.transip.email
+//   port: Number(process.env.SMTP_PORT), // 465
+//   secure: true,                 
 //   auth: {
-//     user: process.env.SMTP_USER,
-//     pass: process.env.SMTP_PASS,
-//   },
-//   tls: {
-//     rejectUnauthorized: false, // temporary for debugging
+//     user: process.env.SMTP_USER,   // noreply@xclusive3d.com
+//     pass: process.env.SMTP_PASS,   // password 
 //   },
 // });
+
+
+export const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: 587,
+  secure: false, // IMPORTANT
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+  tls: {
+    rejectUnauthorized: false, // temporary for debugging
+  },
+});
