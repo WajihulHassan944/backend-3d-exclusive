@@ -1474,7 +1474,7 @@ export const sendTestEmail = async (req, res) => {
       });
     }
 
-    await sendEmailSMTP2GO({
+  const smtpRes = await sendEmailSMTP2GO({
       to: email,
       subject: "SMTP Inbox Test – Xclusive 3D",
       text: `Hello,
@@ -1494,7 +1494,7 @@ This message was requested as part of a system test for xclusive3d.com.
         <p>— Xclusive 3D</p>
       `,
     });
-
+console.log("SMTP2GO success response:", smtpRes);
     return res.status(200).json({
       success: true,
       message: `Test email sent to ${email}`,
