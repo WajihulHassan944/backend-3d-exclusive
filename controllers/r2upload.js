@@ -212,7 +212,12 @@ const { videoId, plainUrl, status, progress, errorMessage, creditsUsed, quality 
 
     const video = await Video.findById(videoId).populate("user");
     if (!video) return res.status(404).json({ error: "Video not found" });
-// Update status or progress (e.g. "processing", "65%")
+const bucketName = video.freeTrial
+  ? process.env.R2_FREE_TRIAL_BUCKET_NAME
+  : process.env.R2_BUCKET_NAME;
+
+
+    // Update status or progress (e.g. "processing", "65%")
 if (status && (!plainUrl || status !== "completed")) {
   if (status === "processing" && !video.startedAt) {
     video.startedAt = new Date(); // only set once
@@ -258,11 +263,17 @@ if (status && (!plainUrl || status !== "completed")) {
 
     if (status === "completed" && plainUrl) {
       const urlObj = new URL(plainUrl);
-      let key = decodeURIComponent(urlObj.pathname.replace(/^\/+/, ""));
-      key = key.replace(/^3d-uploads\//, "");
+
+// Strip only the bucket root from the start of the key
+const bucketPrefix = video.freeTrial ? "3d-upload-free-trial/" : "3d-uploads/";
+let key = decodeURIComponent(urlObj.pathname.replace(/^\/+/, ""));
+if (key.startsWith(bucketPrefix)) key = key.slice(bucketPrefix.length);
+
+
+
 
       const getObjectCommand = new GetObjectCommand({
-        Bucket: process.env.R2_BUCKET_NAME,
+      Bucket: bucketName,
         Key: key,
         ResponseContentDisposition: 'attachment',
       });
@@ -697,17 +708,30 @@ export const freeTrialUploadAndSignedUrl = async (req, res) => {
       quality,
       threeDExperience,
       clientInfo,
+       startTime,
+  endTime,
+  trimOnly,
     } = req.body;
 
     if (!email || !fileName || !fileType) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
-    if (lengthInSeconds > 10) {
-      return res.status(400).json({
-        error: "Free trial is limited to 10 seconds only",
-      });
-    }
+if (trimOnly) {
+  if (
+    typeof startTime !== "number" ||
+    typeof endTime !== "number" ||
+    endTime <= startTime
+  ) {
+    return res.status(400).json({ error: "Invalid trim range" });
+  }
+
+  if (endTime - startTime > 10) {
+    return res.status(400).json({
+      error: "Free trial is limited to 10 seconds only",
+    });
+  }
+}
 
     // 🔍 Find or create user
     let user = await User.findOne({ email });
@@ -730,17 +754,19 @@ export const freeTrialUploadAndSignedUrl = async (req, res) => {
       freeTrial: true,
     });
 
-    if (alreadyUsed) {
-      return res.status(403).json({
-        error: "Free trial already used",
-      });
-    }
+    // if (alreadyUsed) {
+    //   return res.status(403).json({
+    //     error: "Free trial already used",
+    //   });
+    // }
 
     // 📂 Cloudflare R2 → free-trial folder
-    const key = `free-trial/${Date.now()}_${fileName}`;
+    const key = `3d_upload_free_trial/${Date.now()}_${fileName}`;
+
+
 
     const putCommand = new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET_NAME,
+      Bucket: process.env.R2_FREE_TRIAL_BUCKET_NAME,
       Key: key,
       ContentType: fileType,
     });
@@ -751,7 +777,7 @@ export const freeTrialUploadAndSignedUrl = async (req, res) => {
 
     // 🔗 Read URL (7 days)
     const getCommand = new GetObjectCommand({
-      Bucket: process.env.R2_BUCKET_NAME,
+      Bucket: process.env.R2_FREE_TRIAL_BUCKET_NAME,
       Key: key,
     });
 
@@ -772,6 +798,9 @@ export const freeTrialUploadAndSignedUrl = async (req, res) => {
       freeTrial: true,
       creditsUsed: 0,
       status: "uploaded",
+      startTime,
+endTime,
+trimOnly: !!trimOnly,
       clientInfo: {
         ...clientInfo,
         freeTrialEmail: email,

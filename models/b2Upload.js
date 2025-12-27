@@ -89,7 +89,18 @@ clientInfo: {
   type: mongoose.Schema.Types.Mixed,
   default: null,
 },
+startTime: {
+  type: Number, // trim start (seconds)
+},
 
+endTime: {
+  type: Number, // trim end (seconds)
+},
+
+trimOnly: {
+  type: Boolean,
+  default: false,
+},
   createdAt: {
     type: Date,
     default: Date.now,
