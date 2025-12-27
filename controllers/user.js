@@ -1447,7 +1447,6 @@ export const deleteStripeCustomerAndWallet = async (req, res, next) => {
 
 
 
-
 export const sendTestEmail = async (req, res) => {
   try {
     const { email } = req.params;
@@ -1458,25 +1457,51 @@ export const sendTestEmail = async (req, res) => {
         message: "Email param is required",
       });
     }
-await transporter.sendMail({
-  from: `"Xclusive 3D" <${process.env.SMTP_USER}>`, // MUST match SMTP_USER
-  to: email,
-  subject: "SMTP Inbox Test – Xclusive 3D",
-  text: `Hello,
 
-This is a plain-text test email sent via Nodemailer using TransIP SMTP.
+    const html = `
+      <div style="font-family:Arial, sans-serif; max-width:600px; margin:auto;">
+        <h2 style="color:#4f46e5;">Xclusive 3D Email Test</h2>
+        <p>Hello,</p>
+        <p>
+          This email confirms that messaging from
+          <strong>Xclusive 3D</strong> is working correctly.
+        </p>
+        <p>
+          If you received this message, email delivery is functioning as expected.
+        </p>
+        <p style="margin-top:30px;">
+          — Xclusive 3D Team
+        </p>
+      </div>
+    `;
 
-This message was requested as part of a system test for xclusive3d.com.
+    const text = `
+Hello,
 
+This email confirms that messaging from Xclusive 3D is working correctly.
 
-— Xclusive 3D
-`,
-});
+If you received this message, email delivery is functioning as expected.
+
+— Xclusive 3D Team
+`;
+
+    await transporter.sendMail({
+      from: `"Xclusive 3D" <${process.env.SMTP_USER}>`,
+      to: email,
+      subject: "Xclusive 3D – Email Delivery Confirmation",
+      text,
+      html,
+      headers: {
+        "X-Mailer": "Xclusive3D-Mailer",
+        "List-Unsubscribe": "<mailto:unsubscribe@xclusive3d.com>",
+      },
+    });
 
     return res.status(200).json({
       success: true,
       message: `Test email sent to ${email}`,
     });
+
   } catch (error) {
     console.error("Test email error:", error);
     return res.status(500).json({
@@ -1484,4 +1509,4 @@ This message was requested as part of a system test for xclusive3d.com.
       message: "Failed to send test email",
     });
   }
-};  
+};
