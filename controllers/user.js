@@ -1017,93 +1017,78 @@ export const updateProfile = async (req, res, next) => {
 
 
 
-
-export const handleContactForm = async (req, res) => {
+export const handleContactForm = async (req, res, next) => {
   try {
     const { name, email, subject, message, captcha } = req.body;
 
+    // ✅ Validate required fields
     if (!name || !email || !subject || !message || !captcha) {
-      return res.status(400).json({
-        success: false,
-        message: "All fields and CAPTCHA are required.",
-      });
+      return res.status(400).json({ success: false, message: "All fields and CAPTCHA are required." });
     }
 
-    // ✅ Verify reCAPTCHA
-    const captchaRes = await fetch(
-      "https://www.google.com/recaptcha/api/siteverify",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          secret: process.env.RECAPTCHA_SECRET_KEY,
-          response: captcha,
-        }),
-      }
-    );
-
+    // ✅ Verify reCAPTCHA with Google
+    const captchaVerifyUrl = `https://www.google.com/recaptcha/api/siteverify`;
+    const captchaRes = await fetch(captchaVerifyUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        secret: process.env.RECAPTCHA_SECRET_KEY, // from Google reCAPTCHA admin console
+        response: captcha,
+      }),
+    });
     const captchaData = await captchaRes.json();
 
-    if (!captchaData.success || captchaData.score < 0.5) {
-      return res.status(400).json({
-        success: false,
-        message: "CAPTCHA verification failed.",
-      });
+    if (!captchaData.success || captchaData.score < 0.5) { // score check applies only for v3
+      return res.status(400).json({ success: false, message: "CAPTCHA verification failed." });
     }
 
-    // ================= ADMIN EMAIL =================
+    // ✅ Notify Admin
     const adminHtml = generateEmailTemplate({
-      subject: "New Contact Form Submission",
+      firstName: "Admin",
+      subject: `New Contact Form Submission`,
       content: `
         <p><strong>Name:</strong> ${name}</p>
         <p><strong>Email:</strong> ${email}</p>
         <p><strong>Subject:</strong> ${subject}</p>
         <p><strong>Message:</strong></p>
         <p>${message}</p>
-      `,
+      `
     });
 
-    await sendEmailSMTP2GO({
+    await transporter.sendMail({
+      from: `"Xclusive 3D Contact Form" <${process.env.FROM}>`,
       to: process.env.ADMIN_EMAIL,
       subject: `📬 New Contact Message from ${name}`,
       html: adminHtml,
-      text: `New message from ${name} (${email})`,
     });
 
-    // ================= USER ACK EMAIL =================
+    // ✅ Acknowledge User
     const userHtml = generateEmailTemplate({
       firstName: name,
       subject: "We've Received Your Message",
       content: `
         <p>Hi ${name},</p>
-        <p>Thanks for contacting <strong>Xclusive 3D</strong>.</p>
-        <p>We've received your message and will respond shortly.</p>
+        <p>Thanks for reaching out to <strong>Xclusive 3D</strong>. We've received your message and will get back to you as soon as possible.</p>
         <p><strong>Your Message:</strong></p>
         <p>${message}</p>
-      `,
+        <p>In the meantime, feel free to explore our platform!</p>
+      `
     });
 
-    await sendEmailSMTP2GO({
+    await transporter.sendMail({
+      from: `"Xclusive 3D Team" <${process.env.FROM}>`,
       to: email,
       subject: "✅ We've Received Your Message – Xclusive 3D",
       html: userHtml,
-      text: `Hi ${name}, we received your message.`,
     });
 
-    return res.status(200).json({
-      success: true,
-      message: "Message sent successfully.",
-    });
+    return res.status(200).json({ success: true, message: "Message sent successfully." });
 
   } catch (error) {
     console.error("Contact form error:", error);
-    return res.status(500).json({
-      success: false,
-      message: "Something went wrong.",
-    });
+    return res.status(500).json({ success: false, message: "Something went wrong." });
   }
-};
-
+}; 
 
 
 export const toggleNewsletter = async (req, res, next) => {
@@ -1473,33 +1458,25 @@ export const sendTestEmail = async (req, res) => {
         message: "Email param is required",
       });
     }
+await transporter.sendMail({
+  from: `"Xclusive 3D" <${process.env.SMTP_USER}>`, // MUST match SMTP_USER
+  to: email,
+  subject: "SMTP Inbox Test – Xclusive 3D",
+  text: `Hello,
 
-  const smtpRes = await sendEmailSMTP2GO({
-      to: email,
-      subject: "SMTP Inbox Test – Xclusive 3D",
-      text: `Hello,
-
-This is a plain-text test email sent via SMTP2GO API.
+This is a plain-text test email sent via Nodemailer using TransIP SMTP.
 
 This message was requested as part of a system test for xclusive3d.com.
 
 
 — Xclusive 3D
 `,
-      html: `
-        <p>Hello,</p>
-        <p>This is a test email sent via <strong>SMTP2GO API</strong>.</p>
-        <p>This message was requested as part of a system test for <strong>xclusive3d.com</strong>.</p>
-        <br/>
-        <p>— Xclusive 3D</p>
-      `,
-    });
-console.log("SMTP2GO success response:", smtpRes);
+});
+
     return res.status(200).json({
       success: true,
       message: `Test email sent to ${email}`,
     });
-
   } catch (error) {
     console.error("Test email error:", error);
     return res.status(500).json({
@@ -1507,4 +1484,4 @@ console.log("SMTP2GO success response:", smtpRes);
       message: "Failed to send test email",
     });
   }
-};
+};  
