@@ -289,7 +289,6 @@ if (key.startsWith(bucketPrefix)) key = key.slice(bucketPrefix.length);
       await video.save();
 
     const user = video.user;
-
 if (video.freeTrial) {
   try {
     // 🔎 Find active, non-expired coupon restricted to this email
@@ -301,10 +300,18 @@ if (video.freeTrial) {
 
     const couponCode = coupon?.code || "TRIAL40";
 
+    // ✅ Prepare CountdownMail dynamic timer URL using coupon expiry
+    let countdownUrl = "https://i.countdownmail.com/4qmxrp.gif"; // Replace with your timer ID
+    if (coupon?.expiryDate) {
+      // Format expiry date in ISO with timezone offset
+      const expiryISO = new Date(coupon.expiryDate).toISOString();
+      countdownUrl += `?end_date_time=${expiryISO}`;
+    }
+
     await transporter.sendMail({
       from: `"Xclusive 3D" <${process.env.FROM}>`,
       to: user.email,
-      subject: "🎁 Your 10-sec 3D Preview + Exclusive 40% Discount (48h)",
+      subject: "🎁 Your 10-sec 3D Preview + Exclusive 40% Discount",
       html: generateEmailTemplate({
         firstName: user.firstName || "there",
         subject: "Your Free 3D Preview Is Ready",
@@ -335,12 +342,11 @@ if (video.freeTrial) {
             Coupon Code: ${couponCode}
           </p>
 
-          <p><strong>⏳ This offer expires permanently in exactly 48 hours.</strong></p>
+          <p><strong>⏳ This offer expires permanently on ${new Date(coupon.expiryDate).toLocaleString()}.</strong></p>
 
-         <div style="text-align:center; margin:24px 0;">
-    <img src="https://i.countdownmail.com/4qmkl9.gif?id=$2y$10$@dX756.*|URL:EMAIL|*" style="width:100%!important;" border="0" alt="countdownmail.com"/>
-    </div>
-
+          <div style="text-align:center; margin:24px 0;">
+            <img src="${countdownUrl}" style="width:100%!important;" border="0" alt="Countdown Timer"/>
+          </div>
 
           <p><strong>Upgrade today and secure:</strong></p>
           <ul>
@@ -374,6 +380,7 @@ if (video.freeTrial) {
     console.error("❌ Free trial email failed:", mailErr);
   }
 }
+
  else {
   // 🚀 Normal completion email
   const emailHtml = generateEmailTemplate({
