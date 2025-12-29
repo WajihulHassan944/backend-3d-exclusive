@@ -361,17 +361,14 @@ if (video.freeTrial) {
           </ul>
 
           <div style="margin:30px 0;text-align:center;">
-            <a href="https://www.xclusive3d.com/signup?coupon=${couponCode}"
+            <a href="https://www.xclusive3d.com/pricing?coupon=${couponCode}"
                style="padding:14px 26px;background:#ff8c2f;color:#fff;
                border-radius:6px;text-decoration:none;font-weight:bold;">
               REDEEM 40% DISCOUNT
             </a>
           </div>
 
-          <p>
-            Don't wait until the timer hits zero.
-            Once time runs out, the discount is gone.
-          </p>
+         
 
           <p>
             Best regards,<br/>
