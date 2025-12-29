@@ -291,6 +291,20 @@ if (key.startsWith(bucketPrefix)) key = key.slice(bucketPrefix.length);
     const user = video.user;
 if (video.freeTrial) {
   try {
+
+// ⏳ Force-reset expiry to 48 hours from NOW on completion
+await Coupon.updateMany(
+  {
+    status: "active",
+    "usageRestriction.userEmail": user.email.toLowerCase(),
+  },
+  {
+    $set: {
+      expiryDate: new Date(Date.now() + 48 * 60 * 60 * 1000),
+    },
+  }
+);
+
     // 🔎 Find active, non-expired coupon restricted to this email
     const coupon = await Coupon.findOne({
       status: "active",
@@ -751,11 +765,11 @@ if (trimOnly) {
       freeTrial: true,
     });
 
-    if (alreadyUsed) {
-      return res.status(403).json({
-        error: "Free trial already used",
-      });
-    }
+    // if (alreadyUsed) {
+    //   return res.status(403).json({
+    //     error: "Free trial already used",
+    //   });
+    // }
 
     // 📂 Cloudflare R2 → free-trial folder
     const key = `3d_upload_free_trial/${Date.now()}_${fileName}`;
@@ -810,8 +824,8 @@ const discountCode = `TRIAL40-${Math.random()
   .toUpperCase()}`;
 
 // ⏳ 48 hours expiry
-const expiryDate = new Date(Date.now() + 48 * 60 * 60 * 1000);
-
+const expiryDate = new Date();
+expiryDate.setHours(expiryDate.getHours() + 48);
 // 💾 Save coupon in DB (email-restricted, single use)
 await Coupon.create({
   code: discountCode,
