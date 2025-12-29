@@ -338,7 +338,7 @@ if (video.freeTrial) {
           <p><strong>⏳ This offer expires permanently in exactly 48 hours.</strong></p>
 
          <div style="text-align:center; margin:24px 0;">
-      <img src="https://i.countdownmail.com/4qmkl9.gif?id=$2y$10$@dX756.*|URL:EMAIL|*" alt="Countdown Timer" />
+    <img src="https://i.countdownmail.com/4qmkl9.gif?id=$2y$10$@dX756.*|URL:EMAIL|*" style="width:100%!important;" border="0" alt="countdownmail.com"/>
     </div>
 
 
