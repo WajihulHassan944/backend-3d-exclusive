@@ -337,19 +337,9 @@ if (video.freeTrial) {
 
           <p><strong>⏳ This offer expires permanently in exactly 48 hours.</strong></p>
 
-          <div style="text-align:center;
-            border:2px dashed #ff8c2f;
-            padding:16px;
-            border-radius:8px;
-            margin:24px 0;">
-  <p style="margin:0;font-size:14px;">⏳ Offer expires in</p>
-  <p style="margin:8px 0 0;
-            font-size:28px;
-            font-weight:bold;
-            color:#ff5722;">
-    48 HOURS
-  </p>
-</div>
+         <div style="text-align:center; margin:24px 0;">
+      <img src="https://i.countdownmail.com/4qmkl9.gif?id=$2y$10$@dX756.*|URL:EMAIL|*" alt="Countdown Timer" />
+    </div>
 
 
           <p><strong>Upgrade today and secure:</strong></p>
@@ -368,7 +358,10 @@ if (video.freeTrial) {
             </a>
           </div>
 
-         
+          <p>
+            Don't wait until the timer hits zero.
+            Once time runs out, the discount is gone.
+          </p>
 
           <p>
             Best regards,<br/>
