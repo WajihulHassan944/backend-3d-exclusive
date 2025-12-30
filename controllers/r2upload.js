@@ -330,7 +330,7 @@ await Coupon.updateMany(
         firstName: user.firstName || "there",
         subject: "Your Free 3D Preview Is Ready",
         content: `
-          <p>Hi ${user.firstName || "there"},</p>
+          <p>Hi there,</p>
 
           <p>Your free <strong>10-second 3D preview</strong> is ready. We hope you are impressed with the result!</p>
 
