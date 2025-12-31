@@ -104,7 +104,7 @@ export const saveR2Metadata = async (req, res) => {
       threeDExperience?.charAt(0).toUpperCase() +
       threeDExperience?.slice(1).toLowerCase();
 
-   // ✅ Estimate processing time dynamically based on resolution
+// ✅ Estimate processing time dynamically based on resolution
 // Assume average video FPS = 30
 let renderFPS;
 
@@ -112,15 +112,20 @@ let renderFPS;
 const resolution = parseInt(quality.replace(/\D/g, ''), 10);
 
 // Set FPS dynamically based on resolution range
-if (resolution <= 480) renderFPS = 18;         // SD (boosted a bit from 14 → 18)
-else if (resolution <= 720) renderFPS = 14;    // HD Ready (was 12 → now 14)
-else if (resolution <= 1080) renderFPS = 10;   // Full HD (correct as per instruction)
-else if (resolution <= 2160) renderFPS = 4;    // 4K (correct)
-else if (resolution <= 4320) renderFPS = 2;    // 8K (correct)
-else renderFPS = 1;                            // Above 8K → reduced slightly
+if (resolution <= 480) renderFPS = 18;
+else if (resolution <= 720) renderFPS = 14;
+else if (resolution <= 1080) renderFPS = 10;
+else if (resolution <= 2160) renderFPS = 4;
+else if (resolution <= 4320) renderFPS = 2;
+else renderFPS = 1;
 
-const totalFrames = lengthInSeconds * 30; // assuming 30fps video input
-const estimatedProcessingTime = ((totalFrames / renderFPS) * 1.15) / 60; // in minutes
+const totalFrames = lengthInSeconds * 30; // assuming 30fps input
+
+const STARTUP_TIME_MINUTES = 4; // ⏱ fixed startup time requested by client
+
+const estimatedProcessingTime =
+  STARTUP_TIME_MINUTES +
+  (((totalFrames / renderFPS) * 1.15) / 60); // in minutes
 
     // ✅ Save video metadata
     const savedVideo = await Video.create({
