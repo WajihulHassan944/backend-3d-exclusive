@@ -1,34 +1,55 @@
 // controllers/liveVisitorsController.js
 import { Video } from "../models/b2Upload.js";
+import Coupon from "../models/coupon.js";
 import page from "../models/frontend/page.js";
 import { Invoice } from "../models/invoice.js";
 import { getRates } from "../utils/exchangeRateService.js";
 import { pusher } from "../utils/pusher.js";
 
 let liveVisitors = 0;
-
 export const userConnected = async (req, res) => {
   try {
     liveVisitors++;
 
-    // Fetch both states from ANY page
+    // Fetch global page flags
     const anyPage = await page.findOne().select("isComingSoon isStickyNav");
 
     const isComingSoon = anyPage?.isComingSoon ?? false;
-    const isStickyNav = anyPage?.isStickyNav ?? false;
+    const pageStickyNav = anyPage?.isStickyNav ?? false;
 
-    // 🔥 Push live update event
+    // ✅ Check if ANY shared coupon is active
+    const now = new Date();
+    const hasActiveSharedCoupon = await Coupon.exists({
+      status: "active",
+      "usageRestriction.individualUseOnly": false,
+      $expr: {
+        $and: [
+          { $gte: ["$expiryDate", now] },
+          {
+            $or: [
+              { $eq: ["$usageLimit", null] },
+              { $lt: ["$usageCount", "$usageLimit"] },
+            ],
+          },
+        ],
+      },
+    });
+
+    // 🔥 AND condition
+    const isStickyNav = pageStickyNav && Boolean(hasActiveSharedCoupon);
+
+    // Push live update
     await pusher.trigger("exclusive", "live-visitors-update", {
       count: liveVisitors,
       isComingSoon,
-      isStickyNav, // send sticky nav state
+      isStickyNav,
     });
 
     return res.status(200).json({
       success: true,
       count: liveVisitors,
       isComingSoon,
-      isStickyNav, // send back in API too
+      isStickyNav,
     });
   } catch (error) {
     console.error("Pusher liveVisitors error:", error);
@@ -38,6 +59,7 @@ export const userConnected = async (req, res) => {
     });
   }
 };
+
 
 
 // called when user disconnects (frontend triggers on unload/leave)

@@ -770,11 +770,11 @@ if (trimOnly) {
       freeTrial: true,
     });
 
-    // if (alreadyUsed) {
-    //   return res.status(403).json({
-    //     error: "Free trial already used",
-    //   });
-    // }
+    if (alreadyUsed) {
+      return res.status(403).json({
+        error: "Free trial already used",
+      });
+    }
 
     // 📂 Cloudflare R2 → free-trial folder
     const key = `3d_upload_free_trial/${Date.now()}_${fileName}`;
