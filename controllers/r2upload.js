@@ -1,5 +1,5 @@
 
-import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, GetObjectCommand , CreateMultipartUploadCommand, UploadPartCommand, CompleteMultipartUploadCommand} from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { User } from '../models/user.js';
 import { Video } from '../models/b2Upload.js';
@@ -24,21 +24,13 @@ export const getR2SignedUrl = async (req, res) => {
     const user = await User.findById(req.user._id);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
-    const { fileName, fileType, usingFreeConversion, cost } = req.body;
+    const { fileName, fileType, cost } = req.body;
 
     if (!fileName || !fileType) {
       return res.status(400).json({ error: 'Missing fileName or fileType' });
     }
 
-    // 🔓 Mark free conversion as used
-    if (usingFreeConversion && user.hasFreeConversion) {
-      user.hasFreeConversion = false;
-      await user.save();
-      console.log(`🎁 Used free conversion for user ${user.email}`);
-    }
-
-    // 💰 Deduct credits if not using free conversion
-    if (!usingFreeConversion) {
+    
       const wallet = await Wallet.findOne({ userId: user._id });
       if (!wallet) {
         return res.status(404).json({ error: 'Wallet not found' });
@@ -52,8 +44,7 @@ export const getR2SignedUrl = async (req, res) => {
       wallet.balance -= cost;
       await wallet.save();
       console.log(`💳 Charged ${cost} credits from ${user.email}`);
-    }
-
+   
     // ✅ Generate signed URL
     const key = `uploads/${Date.now()}_${fileName}`;
 
@@ -71,6 +62,98 @@ export const getR2SignedUrl = async (req, res) => {
     res.status(500).json({ error: 'Failed to generate signed URL' });
   }
 };
+
+
+
+
+export const initMultipartUpload = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    const { fileName, fileType, cost } = req.body;
+
+    // 🔒 Wallet check (same logic you already have)
+    const wallet = await Wallet.findOne({ userId: user._id });
+    if (!wallet || wallet.balance < cost) {
+      return res.status(400).json({ error: "Insufficient credits" });
+    }
+
+    wallet.balance -= cost;
+    await wallet.save();
+
+    const key = `uploads/${Date.now()}_${fileName}`;
+
+    const command = new CreateMultipartUploadCommand({
+      Bucket: process.env.R2_BUCKET_NAME,
+      Key: key,
+      ContentType: fileType,
+    });
+
+    const response = await r2Client.send(command);
+
+    return res.json({
+      uploadId: response.UploadId,
+      key,
+    });
+  } catch (err) {
+    console.error("❌ Init multipart error:", err);
+    res.status(500).json({ error: "Failed to initiate multipart upload" });
+  }
+};
+
+export const signMultipartPart = async (req, res) => {
+  try {
+    const { key, uploadId, partNumber } = req.body;
+
+    if (!key || !uploadId || !partNumber) {
+      return res.status(400).json({ error: "Missing parameters" });
+    }
+
+    const command = new UploadPartCommand({
+      Bucket: process.env.R2_BUCKET_NAME,
+      Key: key,
+      UploadId: uploadId,
+      PartNumber: partNumber,
+    });
+
+    const signedUrl = await getSignedUrl(r2Client, command, {
+      expiresIn: 600,
+    });
+
+    res.json({ signedUrl });
+  } catch (err) {
+    console.error("❌ Sign part error:", err);
+    res.status(500).json({ error: "Failed to sign part" });
+  }
+};
+export const completeMultipartUpload = async (req, res) => {
+  try {
+    const { key, uploadId, parts } = req.body;
+    // parts = [{ ETag, PartNumber }]
+
+    if (!key || !uploadId || !parts?.length) {
+      return res.status(400).json({ error: "Missing completion data" });
+    }
+
+    const command = new CompleteMultipartUploadCommand({
+      Bucket: process.env.R2_BUCKET_NAME,
+      Key: key,
+      UploadId: uploadId,
+      MultipartUpload: { Parts: parts },
+    });
+
+    await r2Client.send(command);
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("❌ Complete upload error:", err);
+    res.status(500).json({ error: "Failed to complete multipart upload" });
+  }
+};
+
+
+
 
 export const saveR2Metadata = async (req, res) => {
   try {
