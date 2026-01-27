@@ -107,13 +107,13 @@ export const appleAuth = async (req, res, next) => {
     if (user && user.signedUp === true) {
       if (!user.verified) {
         return res.redirect(
-          `https://www.xclusive3d.com/login?error=AccountNotVerified`
+          `https://www.xclusivevr.com/login?error=AccountNotVerified`
         );
       }
        // ✅ Check if user status is active
       if (user.status !== "active") {
         return res.redirect(
-          `https://www.xclusive3d.com/login?error=Account${user.status.charAt(0).toUpperCase() + user.status.slice(1)}`
+          `https://www.xclusivevr.com/login?error=Account${user.status.charAt(0).toUpperCase() + user.status.slice(1)}`
         );
       }
 user.lastLogin = new Date();
@@ -126,7 +126,7 @@ user.lastLogin = new Date();
   `Welcome back, ${user.firstName}`,
   200,
   {},
-  "https://www.xclusive3d.com/upload?login=success"
+  "https://www.xclusivevr.com/upload?login=success"
 );
     }
 
@@ -159,9 +159,9 @@ user.lastLogin = new Date();
     });
 
     await transporter.sendMail({
-      from: `"Xclusive 3D" <${process.env.FROM}>`,
+      from: `"Xclusive VR" <${process.env.FROM}>`,
       to: user.email,
-      subject: "Welcome to Xclusive 3D – Sign in with Apple",
+      subject: "Welcome to Xclusive VR – Sign in with Apple",
       html: `<p>Hi ${user.firstName}, you signed up with Apple ID 🎉</p>`,
     });
 
@@ -172,12 +172,12 @@ user.lastLogin = new Date();
   `Welcome ${user.firstName}`,
   201,
   {},
-  "https://www.xclusive3d.com/upload?signup=success"
+  "https://www.xclusivevr.com/upload?signup=success"
 );
   } catch (error) {
     console.error("Apple Auth Error:", error);
     return res.redirect(
-      `https://www.xclusive3d.com/login?error=AppleAuthFailed`
+      `https://www.xclusivevr.com/login?error=AppleAuthFailed`
     );
   }
 };
@@ -240,29 +240,29 @@ if (!existingWallet) {
       transactions: [],
     });
   }
-    // ✅ Branded Welcome Email (Xclusive 3D)
+    // ✅ Branded Welcome Email (Xclusive VR)
     const welcomeHtml = generateEmailTemplate({
       firstName: user.firstName,
       subject: 'Experience 3D Like Never Before!',
       content: `
         <h2 style="color:#ffffff;">Hi ${user.firstName},</h2>
-        <p>Welcome to <strong>Xclusive 3D</strong> — where your 2D videos are transformed into stunning, immersive 3D experiences automatically.</p>
+        <p>Welcome to <strong>Xclusive VR</strong> — where your 2D videos are transformed into stunning, immersive 3D experiences automatically.</p>
         <p>You're now part of a revolution in content transformation. Explore our tools and discover how effortless creating jaw-dropping 3D visuals can be.</p>
         <p><strong>Let’s make your videos come to life — in 3D!</strong></p>
       `
     });
 
     await transporter.sendMail({
-      from: `"Xclusive 3D" <${process.env.FROM}>`,
+      from: `"Xclusive VR" <${process.env.FROM}>`,
       to: user.email,
-      subject: "Welcome to Xclusive 3D – Convert Your Videos to Stunning 3D",
+      subject: "Welcome to Xclusive VR – Convert Your Videos to Stunning 3D",
       html: welcomeHtml,
     });
 
     // ✅ Notify Admin
     const adminNotificationHtml = generateEmailTemplate({
       firstName: "Admin",
-      subject: "New User Joined Xclusive 3D",
+      subject: "New User Joined Xclusive VR",
       content: `
         <p>A new user signed up via Google:</p>
         <ul>
@@ -274,9 +274,9 @@ if (!existingWallet) {
     });
 
     await transporter.sendMail({
-      from: `"Xclusive 3D Notifications" <${process.env.FROM}>`,
+      from: `"Xclusive VR Notifications" <${process.env.FROM}>`,
       to: process.env.ADMIN_EMAIL,
-      subject: "🚀 New Google Signup – Xclusive 3D",
+      subject: "🚀 New Google Signup – Xclusive VR",
       html: adminNotificationHtml,
     });
 
@@ -602,15 +602,15 @@ if (!existingWallet) {
 
 if (addedByAdmin) {
   await transporter.sendMail({
-    from: `"Xclusive 3D" <${process.env.FROM}>`,
+    from: `"Xclusive VR" <${process.env.FROM}>`,
     to: email,
-    subject: "You’ve been added to Xclusive 3D",
+    subject: "You’ve been added to Xclusive VR",
     html: generateEmailTemplate({
       firstName,
-      subject: "You’ve been added to Xclusive 3D",
+      subject: "You’ve been added to Xclusive VR",
       content: `
         <p style="margin-bottom:16px;">Hello ${firstName},</p>
-        <p style="margin-bottom:16px;">An admin has created an account for you on <strong>Xclusive 3D</strong>.</p>
+        <p style="margin-bottom:16px;">An admin has created an account for you on <strong>Xclusive VR</strong>.</p>
         <p style="margin-bottom:16px;">You can now log in using the following credentials:</p>
         <ul style="margin-bottom:16px; line-height:1.6;">
           <li><strong>Email:</strong> ${email}</li>
@@ -630,15 +630,15 @@ if (addedByAdmin) {
   const token = jwt.sign({ userId: user._id }, process.env.JWT_SECRET, { expiresIn: "1d" });
   const verificationLink = `https://backend-3d-exclusive.vercel.app/api/users/verify-email?token=${token}`;
 await transporter.sendMail({
-  from: `"Xclusive 3D" <${process.env.FROM}>`,
+  from: `"Xclusive VR" <${process.env.FROM}>`,
   to: email,
   subject: "Verify Your Email",
   html: generateEmailTemplate({
     firstName,
-    subject: "Verify Your Xclusive 3D Account",
+    subject: "Verify Your Xclusive VR Account",
     content: `
       <p style="margin-bottom:16px;">Hello ${firstName},</p>
-      <p style="margin-bottom:16px;">Thanks for signing up on <strong>Xclusive 3D</strong>. To activate your account and get started with 3D video conversions, please verify your email address below:</p>
+      <p style="margin-bottom:16px;">Thanks for signing up on <strong>Xclusive VR</strong>. To activate your account and get started with 3D video conversions, please verify your email address below:</p>
 
       <div style="margin:30px 0;text-align:center;">
         <a href="${verificationLink}" style="padding:10px 20px; background:#FF5722; color:white; border-radius:6px; text-decoration:none; font-size:14px;">
@@ -685,16 +685,16 @@ export const verifyEmail = async (req, res, next) => {
     if (!user) return next(new ErrorHandler("Invalid or expired verification link", 400));
 
     if (user.verified) {
-      return res.redirect("https://www.xclusive3d.com/status?verified=already");
+      return res.redirect("https://www.xclusivevr.com/status?verified=already");
     }
 
     user.verified = true;
     await user.save();
 
-    res.redirect("https://www.xclusive3d.com/status?verified=success");
+    res.redirect("https://www.xclusivevr.com/status?verified=success");
   } catch (error) {
     console.error(error);
-    res.redirect("https://www.xclusive3d.com/status?verified=fail");
+    res.redirect("https://www.xclusivevr.com/status?verified=fail");
   }
 };
 
@@ -856,15 +856,15 @@ export const resetPasswordRequestEmail = async (req, res, next) => {
       expiresIn: "1h",
     });
 
-    const resetLink = `https://www.xclusive3d.com/reset-password?token=${resetToken}`;
+    const resetLink = `https://www.xclusivevr.com/reset-password?token=${resetToken}`;
 
     // 3. Compose email using your branded template
     const resetHtml = generateEmailTemplate({
       firstName: user.firstName,
-      subject: "Reset Your Password – Xclusive 3D",
+      subject: "Reset Your Password – Xclusive VR",
       content: `
         <p style="margin:0;">Hi ${user.firstName},</p>
-        <p>We received a request to reset your password for your <strong>Xclusive 3D</strong> account.</p>
+        <p>We received a request to reset your password for your <strong>Xclusive VR</strong> account.</p>
         <p>Click the button below to set a new password:</p>
         <div style="margin: 30px 0; text-align: center;">
           <a href="${resetLink}" style="display: inline-block; padding: 12px 25px; background-color: #ff0066; color: #fff; text-decoration: none; border-radius: 5px; font-size: 16px;">
@@ -874,15 +874,15 @@ export const resetPasswordRequestEmail = async (req, res, next) => {
         <p>This secure link will expire in 1 hour.</p>
         <p>If you didn’t request this, no action is needed — your account is still safe.</p>
         <p>Need help? Just reply to this email and our team will assist you.</p>
-        <p style="margin-top:30px;">– The Xclusive 3D Team</p>
+        <p style="margin-top:30px;">– The Xclusive VR Team</p>
       `,
     });
 
     // 4. Send the email
     await transporter.sendMail({
-      from: `"Xclusive 3D" <${process.env.FROM}>`,
+      from: `"Xclusive VR" <${process.env.FROM}>`,
       to: user.email,
-      subject: "Reset Your Password – Xclusive 3D",
+      subject: "Reset Your Password – Xclusive VR",
       html: resetHtml,
     });
 
@@ -1056,7 +1056,7 @@ export const handleContactForm = async (req, res, next) => {
     });
 
     await transporter.sendMail({
-      from: `"Xclusive 3D Contact Form" <${process.env.FROM}>`,
+      from: `"Xclusive VR Contact Form" <${process.env.FROM}>`,
       to: process.env.ADMIN_EMAIL,
       subject: `📬 New Contact Message from ${name}`,
       html: adminHtml,
@@ -1068,7 +1068,7 @@ export const handleContactForm = async (req, res, next) => {
       subject: "We've Received Your Message",
       content: `
         <p>Hi ${name},</p>
-        <p>Thanks for reaching out to <strong>Xclusive 3D</strong>. We've received your message and will get back to you as soon as possible.</p>
+        <p>Thanks for reaching out to <strong>Xclusive VR</strong>. We've received your message and will get back to you as soon as possible.</p>
         <p><strong>Your Message:</strong></p>
         <p>${message}</p>
         <p>In the meantime, feel free to explore our platform!</p>
@@ -1076,9 +1076,9 @@ export const handleContactForm = async (req, res, next) => {
     });
 
     await transporter.sendMail({
-      from: `"Xclusive 3D Team" <${process.env.FROM}>`,
+      from: `"Xclusive VR Team" <${process.env.FROM}>`,
       to: email,
-      subject: "✅ We've Received Your Message – Xclusive 3D",
+      subject: "✅ We've Received Your Message – Xclusive VR",
       html: userHtml,
     });
 
@@ -1197,10 +1197,10 @@ export const subscribeNewsletter = async (req, res, next) => {
     const unsubscribeUrl = `https://backend-3d-exclusive.vercel.app/api/users/unsubscribe?email=${encodeURIComponent(email)}`;
     const html = generateEmailTemplate({
       firstName: name || 'there',
-      subject: "You're subscribed to Xclusive 3D!",
+      subject: "You're subscribed to Xclusive VR!",
       content: `
         <p>Hi ${name || 'there'},</p>
-        <p>Thanks for subscribing to <strong>Xclusive 3D</strong>! We're glad to have you on board.</p>
+        <p>Thanks for subscribing to <strong>Xclusive VR</strong>! We're glad to have you on board.</p>
         <p>Expect the latest updates on 3D content, exclusive deals, and more.</p>
         <p>If you'd ever like to stop receiving emails, just click here:</p>
         <p><a href="${unsubscribeUrl}" style="color:#f97316;">Unsubscribe</a></p>
@@ -1208,9 +1208,9 @@ export const subscribeNewsletter = async (req, res, next) => {
     });
 
     await transporter.sendMail({
-      from: `"Xclusive 3D Newsletter" <${process.env.FROM}>`,
+      from: `"Xclusive VR Newsletter" <${process.env.FROM}>`,
       to: email,
-      subject: "🎉 Welcome to Xclusive 3D",
+      subject: "🎉 Welcome to Xclusive VR",
       html,
     });
 
@@ -1229,7 +1229,7 @@ export const unsubscribeNewsletter = async (req, res, next) => {
     const { email } = req.query;
 
     if (!email || !validator.isEmail(email)) {
-      return res.redirect('https://www.xclusive3d.com/newsletter?unsubscribed=failure');
+      return res.redirect('https://www.xclusivevr.com/newsletter?unsubscribed=failure');
     }
 
     const response = await fetch(`https://connect.mailerlite.com/api/subscribers/${email}`, {
@@ -1242,14 +1242,14 @@ export const unsubscribeNewsletter = async (req, res, next) => {
 
     if (!response.ok) {
       console.error('Unsubscribe failed:', await response.json());
-      return res.redirect('https://www.xclusive3d.com/newsletter?unsubscribed=failure');
+      return res.redirect('https://www.xclusivevr.com/newsletter?unsubscribed=failure');
     }
 
-    return res.redirect('https://www.xclusive3d.com/newsletter?unsubscribed=success');
+    return res.redirect('https://www.xclusivevr.com/newsletter?unsubscribed=success');
 
   } catch (error) {
     console.error('Unsubscribe error:', error);
-    return res.redirect('https://www.xclusive3d.com/newsletter?unsubscribed=failure');
+    return res.redirect('https://www.xclusivevr.com/newsletter?unsubscribed=failure');
   }
 };
 export const promoteAdmins = async (req, res) => {
@@ -1460,11 +1460,11 @@ export const sendTestEmail = async (req, res) => {
 
     const html = `
       <div style="font-family:Arial, sans-serif; max-width:600px; margin:auto;">
-        <h2 style="color:#4f46e5;">Xclusive 3D Email Test</h2>
+        <h2 style="color:#4f46e5;">Xclusive VR Email Test</h2>
         <p>Hello,</p>
         <p>
           This email confirms that messaging from
-          <strong>Xclusive 3D</strong> is working correctly.
+          <strong>Xclusive VR</strong> is working correctly.
         </p>
         
          <div style="text-align:center; margin:24px 0;">
@@ -1474,7 +1474,7 @@ export const sendTestEmail = async (req, res) => {
           If you received this message, email delivery is functioning as expected.
         </p>
         <p style="margin-top:30px;">
-          — Xclusive 3D Team
+          — Xclusive VR Team
         </p>
       </div>
     `;
@@ -1482,22 +1482,22 @@ export const sendTestEmail = async (req, res) => {
     const text = `
 Hello,
 
-This email confirms that messaging from Xclusive 3D is working correctly.
+This email confirms that messaging from Xclusive VR is working correctly.
 
 If you received this message, email delivery is functioning as expected.
 
-— Xclusive 3D Team
+— Xclusive VR Team
 `;
 
     await transporter.sendMail({
-      from: `"Xclusive 3D" <${process.env.SMTP_USER}>`,
+      from: `"Xclusive VR" <${process.env.SMTP_USER}>`,
       to: email,
-      subject: "Xclusive 3D – Email Delivery Confirmation",
+      subject: "Xclusive VR – Email Delivery Confirmation",
       text,
       html,
       headers: {
-        "X-Mailer": "Xclusive3D-Mailer",
-        "List-Unsubscribe": "<mailto:unsubscribe@xclusive3d.com>",
+        "X-Mailer": "xclusivevr-Mailer",
+        "List-Unsubscribe": "<mailto:unsubscribe@xclusivevr.com>",
       },
     });
 

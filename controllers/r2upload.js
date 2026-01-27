@@ -239,9 +239,9 @@ const estimatedProcessingTime =
     });
 
     await transporter.sendMail({
-      from: `"Xclusive 3D" <${process.env.FROM}>`,
+      from: `"Xclusive VR" <${process.env.FROM}>`,
       to: user.email,
-      subject: '✅ Your Video is Uploaded – Xclusive 3D',
+      subject: '✅ Your Video is Uploaded – Xclusive VR',
       html: emailHtml,
     });
 
@@ -411,7 +411,7 @@ await Coupon.updateMany(
     }
 
     await transporter.sendMail({
-      from: `"Xclusive 3D" <${process.env.FROM}>`,
+      from: `"Xclusive VR" <${process.env.FROM}>`,
       to: user.email,
       subject: "🎁 Your 10-sec 3D Preview + Exclusive 40% Discount",
       html: generateEmailTemplate({
@@ -459,7 +459,7 @@ await Coupon.updateMany(
           </ul>
 
           <div style="margin:30px 0;text-align:center;">
-            <a href="https://www.xclusive3d.com/pricing?coupon=${couponCode}"
+            <a href="https://www.xclusivevr.com/pricing?coupon=${couponCode}"
                style="padding:14px 26px;background:#ff8c2f;color:#fff;
                border-radius:6px;text-decoration:none;font-weight:bold;">
               REDEEM 40% DISCOUNT
@@ -473,7 +473,7 @@ await Coupon.updateMany(
 
           <p>
             Best regards,<br/>
-            <strong>The Xclusive 3D Team</strong>
+            <strong>The Xclusive VR Team</strong>
           </p>
         `,
       }),
@@ -495,9 +495,9 @@ await Coupon.updateMany(
   });
 
   await transporter.sendMail({
-    from: `"Xclusive 3D" <${process.env.FROM}>`,
+    from: `"Xclusive VR" <${process.env.FROM}>`,
     to: user.email,
-    subject: "✅ Your 3D Video is Ready – Xclusive 3D",
+    subject: "✅ Your 3D Video is Ready – Xclusive VR",
     html: emailHtml,
   });
 }
@@ -766,9 +766,9 @@ export const resendVideoNotification = async (req, res) => {
 
     // Send email again
     await transporter.sendMail({
-      from: `"Xclusive 3D" <${process.env.FROM}>`,
+      from: `"Xclusive VR" <${process.env.FROM}>`,
       to: user.email,
-      subject: "✅ Your 3D Video is Ready – Xclusive 3D",
+      subject: "✅ Your 3D Video is Ready – Xclusive VR",
       html: emailHtml,
     });
 

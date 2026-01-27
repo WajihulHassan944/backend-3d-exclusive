@@ -23,7 +23,7 @@ export const createPage = async (req, res) => {
       ogImageUrl = cloudinaryUpload.secure_url;
     } else {
       // ✅ Default fallback OG image
-      ogImageUrl = "https://www.xclusive3d.com/default-og-image.jpg";
+      ogImageUrl = "https://www.xclusivevr.com/default-og-image.jpg";
     }
 
     // ✅ Extract from request body

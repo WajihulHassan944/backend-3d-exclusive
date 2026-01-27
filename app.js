@@ -28,7 +28,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(
   cors({
-    origin: [process.env.FRONTEND_URL,"https://www.xclusivevr.com", "https://xclusivevr.com", "http://localhost:3000", "http://localhost:3001", "https://frontend-3d-exclusive.vercel.app", "http://frontend-3d-exclusive.vercel.app", "https://www.xclusive3d.com", "https://xclusive3d.com"],
+    origin: [process.env.FRONTEND_URL,"https://www.xclusivevr.com", "https://xclusivevr.com", "http://localhost:3000", "http://localhost:3001", "https://frontend-3d-exclusive.vercel.app", "http://frontend-3d-exclusive.vercel.app", "https://www.xclusivevr.com", "https://xclusivevr.com"],
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
     credentials: true,
   })
@@ -48,7 +48,7 @@ app.use("/api/reviews", reviewsRouter);
 app.use("/api/media", mediaRouter);
 
 app.get("/", (req, res) => {
-  res.send("Nice working backend by Wajih ul Hassan for Xclusive3d.com");
+  res.send("Nice working backend by Wajih ul Hassan for xclusivevr.com");
 });
 
 // Using Error Middleware

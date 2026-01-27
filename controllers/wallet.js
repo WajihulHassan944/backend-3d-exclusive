@@ -490,7 +490,7 @@ try {
       <p style="color:#fff;">Hi ${user.firstName || "there"},</p>
       <p style="color:#fff;">Thank you for your recent purchase (Invoice <strong>${invoiceNumber}</strong>).</p>
       <p style="color:#fff;">We’d really appreciate it if you could take a moment to share your experience.</p>
-      <a href="https://www.xclusive3d.com/write-review" 
+      <a href="https://www.xclusivevr.com/write-review" 
          style="display:inline-block;margin-top:10px;background-color:#ff8c2f;color:#fff;padding:10px 20px;
                 text-decoration:none;border-radius:8px;font-weight:bold;">
         Write a Review
@@ -500,9 +500,9 @@ try {
   });
 
   await transporter.sendMail({
-    from: `"Xclusive 3D" <${process.env.FROM}>`,
+    from: `"Xclusive VR" <${process.env.FROM}>`,
     to: user.email,
-    subject: "We’d love your feedback! – Xclusive 3D",
+    subject: "We’d love your feedback! – Xclusive VR",
     html: emailHtml,
   });
 
@@ -1556,9 +1556,9 @@ const emailHtml = generateEmailTemplate({
 });
 
 await transporter.sendMail({
-  from: `"Xclusive 3D" <${process.env.FROM}>`,
+  from: `"Xclusive VR" <${process.env.FROM}>`,
   to: invoice.user.email,
-  subject: "Order Cancelled – Xclusive 3D",
+  subject: "Order Cancelled – Xclusive VR",
   html: emailHtml,
 });
 

@@ -8,7 +8,7 @@ import nodemailer from "nodemailer";
 //   port: Number(process.env.SMTP_PORT), // 465
 //   secure: true,                 
 //   auth: {
-//     user: process.env.SMTP_USER,   // noreply@xclusive3d.com
+//     user: process.env.SMTP_USER,   // noreply@xclusivevr.com
 //     pass: process.env.SMTP_PASS,   // password 
 //   },
 // });
